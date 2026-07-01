@@ -188,7 +188,67 @@ textarea.inp{resize:vertical;min-height:80px;line-height:1.55}
 @keyframes pulse{50%{opacity:.3}}
 .divider{height:1px;background:var(--line);margin:18px 0}
 .tag-list{display:flex;flex-wrap:wrap;gap:6px}
-@media print{#sidebar,.no-print{display:none!important}#main{overflow:visible}.page{max-width:none;padding:0}}
+@media print{#sidebar,.no-print,#bottomnav,#nav-backdrop{display:none!important}#main{overflow:visible}.page{max-width:none;padding:0}}
+
+/* ===== Navegación móvil (bottom bar + cajón lateral) ===== */
+#bottomnav{display:none}
+#nav-backdrop{display:none}
+@media(max-width:768px){
+  #app{display:block;height:auto}
+  #main{height:auto;min-height:100vh;overflow:visible}
+  /* Sidebar como cajón deslizante */
+  #sidebar{position:fixed;top:0;left:0;bottom:0;width:80%;max-width:290px;z-index:200;
+    transform:translateX(-100%);transition:transform .22s ease;box-shadow:0 0 40px rgba(0,0,0,.25)}
+  body.nav-open #sidebar{transform:none}
+  #nav-backdrop{display:none;position:fixed;inset:0;background:rgba(20,20,25,.45);z-index:150;animation:fade .15s}
+  body.nav-open #nav-backdrop{display:block}
+  /* Barra inferior */
+  #bottomnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:120;background:var(--bg);
+    border-top:1px solid var(--line);box-shadow:0 -2px 12px rgba(0,0,0,.06);
+    padding-bottom:env(safe-area-inset-bottom,0)}
+  #bottomnav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+    padding:8px 2px 7px;font-size:10.5px;color:var(--text-faint);font-weight:600}
+  #bottomnav button .bic{font-size:19px;line-height:1}
+  #bottomnav button.active{color:var(--accent)}
+  /* Espaciados y tipografías */
+  .page{padding:16px 14px 88px}
+  .page-head{flex-wrap:wrap;gap:10px;margin-bottom:16px}
+  .page-head h1{font-size:21px}
+  .page-head .sub{font-size:12px}
+  .page-head .actions{margin-left:0;width:100%}
+  .page-head .actions .btn{flex:1;justify-content:center}
+  .cols{grid-template-columns:1fr;gap:14px}
+  .stat{grid-template-columns:1fr 1fr;gap:10px}
+  .stat .v{font-size:24px}
+  .card{padding:13px}
+  /* Campos: 16px evita el zoom automático de iOS al enfocar */
+  input,select,textarea,.inp{font-size:16px}
+  .btn{padding:9px 13px}
+  .btn.sm{padding:6px 10px;font-size:13px}
+  /* Modales a pantalla completa */
+  .modal-bg{padding:0;align-items:stretch}
+  .modal,.modal.wide{max-width:none;width:100%;min-height:100vh;border-radius:0;display:flex;flex-direction:column}
+  .modal-body{max-height:none;flex:1}
+  .modal-foot{position:sticky;bottom:0;background:var(--bg)}
+  .form-grid{grid-template-columns:1fr}
+  /* Tablas: scroll horizontal dentro de la tarjeta */
+  .card{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+  .table{font-size:13px}
+  .table th,.table td{padding:8px 8px}
+  .hide-sm{display:none!important}
+  /* Detalle paciente */
+  .detail-head{flex-wrap:wrap;gap:12px}
+  .detail-head .av{width:52px;height:52px;font-size:20px;flex:0 0 52px}
+  .detail-head h1{font-size:20px}
+  .detail-head .actions{width:100%;display:flex;gap:8px}
+  .detail-head .actions .btn{flex:1;justify-content:center}
+  .tabs{overflow-x:auto;white-space:nowrap}
+  .cal-cell{min-height:58px;padding:3px}
+  .cal-ev{font-size:9px}
+  .search{max-width:none}
+  #toasts{bottom:78px;left:14px;right:14px}
+  #toasts .toast{width:100%}
+}
 </style>
 </head>
 <body>
@@ -196,6 +256,8 @@ textarea.inp{resize:vertical;min-height:80px;line-height:1.55}
   <nav id="sidebar"></nav>
   <main id="main"></main>
 </div>
+<div id="nav-backdrop"></div>
+<nav id="bottomnav"></nav>
 <div id="modal-root"></div>
 <div id="toasts"></div>
 
@@ -374,11 +436,30 @@ const NAV = [
   {sec:'Sistema'},
   {id:'config',     ic:'⚙', label:'Configuración'},
 ];
+// Barra inferior (móvil): accesos rápidos + "Más" abre el cajón lateral
+const BOTTOM = [
+  {id:'dashboard', ic:'⌂', label:'Inicio'},
+  {id:'patients',  ic:'☺', label:'Pacientes'},
+  {id:'calendar',  ic:'▦', label:'Agenda'},
+  {id:'sessions',  ic:'⊞', label:'Sesiones'},
+  {more:true,      ic:'☰', label:'Más'},
+];
+function openDrawer(){ document.body.classList.add('nav-open'); }
+function closeDrawer(){ document.body.classList.remove('nav-open'); }
 
 const App = {
   page:'dashboard', param:null,
-  navigate(page,param=null){ App.page=page; App.param=param; App.render(); window.scrollTo(0,0); $('#main').scrollTop=0; },
-  render(){ App.renderSidebar(); const fn=Pages[App.page]||Pages.dashboard; $('#main').innerHTML=''; fn($('#main'),App.param); },
+  navigate(page,param=null){ App.page=page; App.param=param; closeDrawer(); App.render(); window.scrollTo(0,0); $('#main').scrollTop=0; },
+  render(){ App.renderSidebar(); App.renderMobileNav(); const fn=Pages[App.page]||Pages.dashboard; $('#main').innerHTML=''; fn($('#main'),App.param); },
+  renderMobileNav(){
+    const el=$('#bottomnav'); if(!el) return;
+    const primary=['dashboard','patients','calendar','sessions'];
+    el.innerHTML=BOTTOM.map(it=> it.more
+      ? `<button data-more><span class="bic">${it.ic}</span>${it.label}</button>`
+      : `<button data-mnav="${it.id}" class="${App.page===it.id?'active':''}"><span class="bic">${it.ic}</span>${esc(it.label)}</button>`).join('');
+    $$('[data-mnav]',el).forEach(b=>b.onclick=()=>App.navigate(b.dataset.mnav));
+    $('[data-more]',el).onclick=()=>document.body.classList.toggle('nav-open');
+  },
   renderSidebar(){
     const cfg=Config.get();
     const pendInvoices=Invoices.where(i=>i.status==='pendiente').length;
@@ -391,7 +472,7 @@ const App = {
       if(it.id==='dashboard'&&todayReminders) badge=`<span class="badge">${todayReminders}</span>`;
       h+=`<button class="nav-item ${App.page===it.id?'active':''}" data-nav="${it.id}"><span class="ic">${it.ic}</span>${esc(it.label)}${badge}</button>`;
     }
-    h+=`<div class="sidebar-foot">v0.5 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
+    h+=`<div class="sidebar-foot">v0.6 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
     const sb=$('#sidebar'); sb.innerHTML=h;
     $$('[data-nav]',sb).forEach(b=>b.onclick=()=>App.navigate(b.dataset.nav));
   }
@@ -522,10 +603,10 @@ Pages.patients = (el)=>{
       return `<tr class="row-click" data-open="${p.id}">
         <td><div style="display:flex;align-items:center;gap:10px"><span class="av" style="background:${colorFor(p.name)}">${initials(p.name)}</span>
           <div><b>${esc(p.name)}</b>${p.birth?`<div class="muted" style="font-size:12px">${age(p.birth)} años</div>`:''}</div></div></td>
-        <td>${esc(p.school||'—')}</td>
+        <td class="hide-sm">${esc(p.school||'—')}</td>
         <td>${p.diagnosis?`<span class="pill purple">${esc(p.diagnosis)}</span>`:'<span class="muted">—</span>'}</td>
-        <td>${nSes} <span class="muted">ses.</span></td>
-        <td class="muted">${last?fmtDate(last.date):'—'}</td>
+        <td class="hide-sm">${nSes} <span class="muted">ses.</span></td>
+        <td class="muted hide-sm">${last?fmtDate(last.date):'—'}</td>
         <td>${p.status==='alta'?'<span class="pill gray">Alta</span>':'<span class="pill green"><span class="dot"></span>Activo</span>'}</td>
       </tr>`;
     }).join(''):`<tr><td colspan="6"><div class="empty"><span class="em">☺</span>${q?'Sin resultados':'No hay pacientes todavía'}</div></td></tr>`;
@@ -543,7 +624,7 @@ Pages.patients = (el)=>{
       </div>
     </div>
     <div class="card" style="padding:0;overflow:hidden">
-      <table class="table"><thead><tr><th>Paciente</th><th>Colegio</th><th>Diagnóstico</th><th>Sesiones</th><th>Última sesión</th><th>Estado</th></tr></thead>
+      <table class="table"><thead><tr><th>Paciente</th><th class="hide-sm">Colegio</th><th>Diagnóstico</th><th class="hide-sm">Sesiones</th><th class="hide-sm">Última sesión</th><th>Estado</th></tr></thead>
       <tbody id="pt-body"></tbody></table>
     </div>
   </div>`;
@@ -736,9 +817,9 @@ Pages.sessions = (el)=>{
       return `<tr class="row-click" data-open="${s.patient_id}">
         <td>${fmtDate(s.date)}${s.time?' · '+esc(s.time):''}</td>
         <td><b>${esc(p?.name||'—')}</b></td>
-        <td>${esc(s.objective||'—')}</td>
-        <td class="muted">${s.amount?eur(s.amount):'—'}</td>
-        <td>${s.invoice_ref?'<span class="pill green"><span class="dot"></span>Facturada</span>':(s.paid?'<span class="pill blue">Pagada</span>':'<span class="pill gray">—</span>')}</td>
+        <td class="hide-sm">${esc(s.objective||'—')}</td>
+        <td class="muted hide-sm">${s.amount?eur(s.amount):'—'}</td>
+        <td class="hide-sm">${s.invoice_ref?'<span class="pill green"><span class="dot"></span>Facturada</span>':(s.paid?'<span class="pill blue">Pagada</span>':'<span class="pill gray">—</span>')}</td>
         <td><span class="pill ${st.pill}"><span class="dot"></span>${st.label}</span></td>
         <td style="text-align:right">${s.status==='programada'?`<button class="btn sm green" data-done="${s.id}">✓</button>`:''}</td>
       </tr>`;}).join(''):`<tr><td colspan="7"><div class="empty"><span class="em">⊞</span>Sin sesiones</div></td></tr>`;
@@ -757,7 +838,7 @@ Pages.sessions = (el)=>{
         <button class="chip" data-f="cancelada">Canceladas</button>
       </div></div>
     <div class="card" style="padding:0;overflow:hidden"><table class="table">
-      <thead><tr><th>Fecha</th><th>Paciente</th><th>Objetivo</th><th>Importe</th><th>Cobro</th><th>Estado</th><th></th></tr></thead>
+      <thead><tr><th>Fecha</th><th>Paciente</th><th class="hide-sm">Objetivo</th><th class="hide-sm">Importe</th><th class="hide-sm">Cobro</th><th>Estado</th><th></th></tr></thead>
       <tbody id="ses-body"></tbody></table></div>
   </div>`;
   draw();
@@ -1347,7 +1428,7 @@ function seedDemo(){
 
 /* ---------- Pantalla de acceso ---------- */
 function showLogin(err){
-  $('#sidebar').style.display='none';
+  closeDrawer(); $('#sidebar').style.display='none'; $('#bottomnav').style.display='none';
   $('#main').innerHTML=`<div style="max-width:330px;margin:11vh auto 0;text-align:center;padding:20px">
     <img src="${LOGO_IMG}" alt="Beatriz Calabuig" style="max-width:250px;width:82%">
     <div class="card" style="text-align:left;margin-top:22px">
@@ -1361,7 +1442,7 @@ function showLogin(err){
   const go=async()=>{
     const pw=$('#lg_pw').value.trim(); if(!pw) return;
     const b=$('#lg_btn'); b.disabled=true; b.textContent='Entrando…';
-    try{ await DB.login(pw); $('#sidebar').style.display=''; App.navigate('dashboard'); toast('Sesión iniciada','ok'); }
+    try{ await DB.login(pw); $('#sidebar').style.display=''; $('#bottomnav').style.display=''; App.navigate('dashboard'); toast('Sesión iniciada','ok'); }
     catch(e){ b.disabled=false; b.textContent='Entrar'; showLogin('Contraseña incorrecta'); }
   };
   $('#lg_btn').onclick=go;
@@ -1371,6 +1452,7 @@ function showLogin(err){
 /* ============================================================
    ARRANQUE
    ============================================================ */
+$('#nav-backdrop').onclick=closeDrawer;
 (async()=>{
   $('#main').innerHTML='<div class="page" style="text-align:center;padding-top:120px;color:var(--text-soft)"><div class="spin dark" style="width:28px;height:28px;margin:0 auto 14px"></div>Conectando…</div>';
   const st = await DB.boot();
