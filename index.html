@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#2D4262">
+<title>Logopedia</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Logopedia">
+<link rel="apple-touch-icon" href="icon-512.png">
+<link rel="icon" href="icon-512.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#ffffff; --bg-soft:#f7f7f5; --bg-hover:#efefed; --line:#e9e9e6;
+  --text:#37352f; --text-soft:#787774; --text-faint:#9b9a97;
+  --accent:#2D4262; --accent-soft:#e9edf3;
+  --gold:#a9893f; --gold-soft:#f4eeda; --slate:#99A5B4;
+  --green:#0f7b6c; --green-soft:#ddedea; --amber:#d9730d; --amber-soft:#fbecdd;
+  --red:#e03e3e; --red-soft:#fbe4e4; --purple:#6940a5; --purple-soft:#eee0f7;
+  --radius:8px; --shadow:0 1px 2px rgba(15,15,15,.05),0 4px 12px rgba(15,15,15,.08);
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font);color:var(--text);background:var(--bg);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;font-size:inherit}
+input,select,textarea{font-family:inherit;font-size:14px;color:var(--text)}
+a{color:var(--accent);text-decoration:none}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#d3d3d0;border-radius:6px;border:2px solid var(--bg)}
+
+/* Layout */
+#app{display:flex;height:100vh;overflow:hidden}
+#sidebar{width:240px;flex:0 0 240px;background:var(--bg-soft);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:10px 8px;overflow-y:auto}
+#main{flex:1;overflow-y:auto;position:relative}
+.brand{display:flex;align-items:center;gap:9px;padding:8px 8px 14px;font-weight:600;font-size:15px}
+.brand .logo{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#2383e2,#6940a5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:700}
+.brand small{font-weight:400;color:var(--text-faint);font-size:11px;display:block}
+.nav-sec{font-size:11px;font-weight:600;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em;padding:14px 8px 4px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:6px;color:var(--text-soft);font-weight:500;width:100%;text-align:left;margin-bottom:1px;transition:background .1s}
+.nav-item:hover{background:var(--bg-hover)}
+.nav-item.active{background:var(--bg-hover);color:var(--text)}
+.nav-item .ic{width:18px;text-align:center;font-size:15px;flex:0 0 18px}
+.nav-item .badge{margin-left:auto;background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;min-width:18px;text-align:center}
+.sidebar-foot{margin-top:auto;padding:10px 8px 4px;font-size:11px;color:var(--text-faint)}
+
+/* Content */
+.page{padding:28px 40px 80px;max-width:1180px;margin:0 auto}
+.page-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:22px}
+.page-head h1{font-size:26px;font-weight:700;letter-spacing:-.01em}
+.page-head .sub{color:var(--text-soft);font-size:13px;margin-top:2px}
+.page-head .actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:6px;font-weight:500;background:var(--bg);border:1px solid var(--line);box-shadow:0 1px 2px rgba(15,15,15,.04);transition:.1s;white-space:nowrap}
+.btn:hover{background:var(--bg-soft)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:hover{background:#1a6fc4}
+.btn.green{background:var(--green);color:#fff;border-color:var(--green)}
+.btn.green:hover{filter:brightness(1.08)}
+.btn.ghost{border-color:transparent;box-shadow:none;background:transparent;color:var(--text-soft)}
+.btn.ghost:hover{background:var(--bg-hover)}
+.btn.danger{color:var(--red)}
+.btn.danger:hover{background:var(--red-soft)}
+.btn.sm{padding:4px 9px;font-size:13px}
+.btn.lg{padding:11px 20px;font-size:15px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Cards / grid */
+.grid{display:grid;gap:14px}
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.card{background:var(--bg);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+.stat .card{cursor:default}
+.stat .k{font-size:12px;color:var(--text-soft);font-weight:500;display:flex;align-items:center;gap:7px}
+.stat .v{font-size:30px;font-weight:700;margin-top:6px;letter-spacing:-.02em}
+.stat .v small{font-size:13px;color:var(--text-faint);font-weight:500}
+.cols{display:grid;grid-template-columns:1.5fr 1fr;gap:18px}
+@media(max-width:900px){.cols{grid-template-columns:1fr}}
+.sec-title{font-size:13px;font-weight:600;color:var(--text-soft);margin:0 0 10px;display:flex;align-items:center;gap:8px}
+
+/* Table */
+.table{width:100%;border-collapse:collapse}
+.table th{text-align:left;font-size:11px;font-weight:600;color:var(--text-faint);text-transform:uppercase;letter-spacing:.03em;padding:8px 10px;border-bottom:1px solid var(--line)}
+.table td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.table tr:hover td{background:var(--bg-soft)}
+.table .row-click{cursor:pointer}
+.muted{color:var(--text-faint)}
+.empty{text-align:center;color:var(--text-faint);padding:50px 20px}
+.empty .em{font-size:40px;display:block;margin-bottom:10px;opacity:.6}
+
+/* Pills */
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600}
+.pill.green{background:var(--green-soft);color:var(--green)}
+.pill.amber{background:var(--amber-soft);color:var(--amber)}
+.pill.red{background:var(--red-soft);color:var(--red)}
+.pill.blue{background:var(--accent-soft);color:var(--accent)}
+.pill.purple{background:var(--purple-soft);color:var(--purple)}
+.pill.gray{background:var(--bg-hover);color:var(--text-soft)}
+.pill.gold{background:var(--gold-soft);color:var(--gold)}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+/* Avatar */
+.av{width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;color:#fff;flex:0 0 30px}
+
+/* Forms */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:5px}
+.field .hint{font-size:11px;color:var(--text-faint);margin-top:4px}
+.inp{width:100%;padding:8px 11px;border:1px solid var(--line);border-radius:6px;background:var(--bg);transition:.1s}
+.inp:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+textarea.inp{resize:vertical;min-height:80px;line-height:1.55}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+@media(max-width:640px){.form-grid{grid-template-columns:1fr}}
+.form-grid .full{grid-column:1/-1}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(15,15,15,.45);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:100;overflow-y:auto;animation:fade .12s}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal{background:var(--bg);border-radius:12px;box-shadow:var(--shadow);width:100%;max-width:640px;animation:pop .14s}
+.modal.wide{max-width:860px}
+@keyframes pop{from{transform:translateY(8px);opacity:.6}to{transform:none;opacity:1}}
+.modal-head{display:flex;align-items:center;padding:18px 22px;border-bottom:1px solid var(--line)}
+.modal-head h3{font-size:17px;font-weight:600}
+.modal-head .x{margin-left:auto;color:var(--text-faint);font-size:22px;line-height:1;padding:2px 6px;border-radius:6px}
+.modal-head .x:hover{background:var(--bg-hover)}
+.modal-body{padding:20px 22px;max-height:65vh;overflow-y:auto}
+.modal-foot{display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid var(--line)}
+
+/* Toast */
+#toasts{position:fixed;bottom:22px;right:22px;display:flex;flex-direction:column;gap:8px;z-index:300}
+.toast{background:#37352f;color:#fff;padding:11px 16px;border-radius:8px;box-shadow:var(--shadow);font-size:13px;font-weight:500;display:flex;align-items:center;gap:9px;animation:slide .2s}
+.toast.ok{background:var(--green)}.toast.err{background:var(--red)}
+@keyframes slide{from{transform:translateX(20px);opacity:0}to{transform:none;opacity:1}}
+
+/* Detail */
+.detail-head{display:flex;gap:18px;align-items:flex-start;margin-bottom:22px}
+.detail-head .av{width:64px;height:64px;font-size:24px;border-radius:16px;flex:0 0 64px}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:6px 12px;font-size:13px}
+.kv dt{color:var(--text-faint);font-weight:500}
+.kv dd{color:var(--text)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:20px 0 18px}
+.tab{padding:8px 14px;color:var(--text-soft);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--text);border-bottom-color:var(--text)}
+
+/* Timeline */
+.timeline{position:relative;padding-left:24px}
+.timeline:before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:var(--line)}
+.tl-item{position:relative;padding:0 0 18px}
+.tl-item:before{content:"";position:absolute;left:-21px;top:4px;width:12px;height:12px;border-radius:50%;background:var(--bg);border:2px solid var(--accent)}
+.tl-item.cancel:before{border-color:var(--red)}
+.tl-item.prog:before{border-color:var(--amber)}
+.tl-date{font-size:12px;color:var(--text-faint);font-weight:600}
+
+/* Calendar */
+.cal{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.cal-head{display:grid;grid-template-columns:repeat(7,1fr);background:var(--bg-soft);border-bottom:1px solid var(--line)}
+.cal-head div{padding:8px;text-align:center;font-size:11px;font-weight:600;color:var(--text-soft);text-transform:uppercase}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.cal-cell{min-height:96px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px;position:relative;cursor:pointer;transition:.1s}
+.cal-cell:hover{background:var(--bg-soft)}
+.cal-cell:nth-child(7n){border-right:none}
+.cal-cell.out{background:var(--bg-soft);opacity:.5}
+.cal-cell .cn{font-size:12px;font-weight:600;color:var(--text-soft)}
+.cal-cell.today .cn{background:var(--accent);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.cal-ev{font-size:11px;background:var(--accent-soft);color:var(--accent);border-radius:4px;padding:1px 5px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.cal-ev.done{background:var(--green-soft);color:var(--green)}
+.cal-ev.cancel{background:var(--red-soft);color:var(--red);text-decoration:line-through}
+
+/* misc */
+.search{position:relative;flex:1;max-width:340px}
+.search input{width:100%;padding:8px 11px 8px 32px;border:1px solid var(--line);border-radius:7px;background:var(--bg)}
+.search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.search .si{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-faint)}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.chips{display:flex;gap:6px}
+.chip{padding:5px 11px;border-radius:20px;border:1px solid var(--line);font-size:13px;color:var(--text-soft);font-weight:500}
+.chip.active{background:var(--text);color:#fff;border-color:var(--text)}
+.ai-box{background:linear-gradient(135deg,#faf7ff,#f0f6ff);border:1px solid #e3d9f5;border-radius:var(--radius);padding:14px 16px}
+.ai-box .ai-h{display:flex;align-items:center;gap:7px;font-weight:600;color:var(--purple);font-size:13px;margin-bottom:8px}
+.spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:sp .6s linear infinite}
+.spin.dark{border-color:rgba(105,64,165,.25);border-top-color:var(--purple)}
+@keyframes sp{to{transform:rotate(360deg)}}
+.rec-dot{width:10px;height:10px;border-radius:50%;background:var(--red);display:inline-block;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.divider{height:1px;background:var(--line);margin:18px 0}
+.tag-list{display:flex;flex-wrap:wrap;gap:6px}
+@media print{#sidebar,.no-print{display:none!important}#main{overflow:visible}.page{max-width:none;padding:0}}
+</style>
+</head>
+<body>
+<div id="app">
+  <nav id="sidebar"></nav>
+  <main id="main"></main>
+</div>
+<div id="modal-root"></div>
+<div id="toasts"></div>
+
+<script>
+/* ============================================================
+   Logopedia OS · v0.1
+   Single-file. Vanilla JS. Persistencia: localStorage.
+   Capa de datos preparada para migrar a Supabase (ver DB).
+   IA: OpenAI (GPT + Whisper) — se activa con clave en Config.
+   ============================================================ */
+
+/* ---------- Utilidades ---------- */
+const $ = (s,el=document)=>el.querySelector(s);
+const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
+const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const todayISO = ()=> new Date().toISOString().slice(0,10);
+const nowISO = ()=> new Date().toISOString();
+function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso); if(isNaN(d)) return iso; return d.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'}); }
+function fmtDateTime(iso){ if(!iso) return '—'; const d=new Date(iso); if(isNaN(d)) return iso; return d.toLocaleString('es-ES',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }
+function age(iso){ if(!iso) return null; const d=new Date(iso); if(isNaN(d)) return null; const t=new Date(); let a=t.getFullYear()-d.getFullYear(); const m=t.getMonth()-d.getMonth(); if(m<0||(m===0&&t.getDate()<d.getDate()))a--; return a; }
+function initials(name){ if(!name) return '?'; const p=name.trim().split(/\s+/); return ((p[0]?.[0]||'')+(p[1]?.[0]||'')).toUpperCase(); }
+function colorFor(s){ const h=[...(s||'x')].reduce((a,c)=>a+c.charCodeAt(0),0)%360; return `hsl(${h},45%,52%)`; }
+function eur(n){ return (Number(n)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'}); }
+function relDays(iso){ if(!iso)return ''; const d=Math.round((new Date(iso)-new Date(todayISO()))/86400000); if(d===0)return 'Hoy'; if(d===1)return 'Mañana'; if(d===-1)return 'Ayer'; if(d>0)return `en ${d} días`; return `hace ${-d} días`; }
+
+function toast(msg,type=''){ const t=document.createElement('div'); t.className='toast '+type; t.innerHTML=(type==='ok'?'✓ ':type==='err'?'✕ ':'')+esc(msg); $('#toasts').appendChild(t); setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300);},2800); }
+
+/* ============================================================
+   CAPA DE DATOS
+   localStorage hoy; misma API que facilitará pasar a Supabase.
+   store(name) → {all, get, where, insert, update, remove}
+   ============================================================ */
+const NS = 'logopedia_os';
+
+/* Backend Supabase — proyecto DEDICADO de Logopedia (separado de GMAO).
+   Patrón GMAO: clave anon + cuenta Auth de servicio compartida (RLS "authenticated"). */
+const SB_URL  = 'https://btdmedkgqourzbadinrc.supabase.co';
+const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ0ZG1lZGtncW91cnpiYWRpbnJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4MzM0MTgsImV4cCI6MjA5ODQwOTQxOH0.lnOLXZuvqLvjMVW6FD2up4BQGz6AS3MeYipIUJGP9O0';
+const SB_AUTH_EMAIL = 'logopedia-app@grupoguillem.com';   // la contraseña NO se embebe: se pide en el login
+const TABLES  = ['patients','sessions','session_feedback','reports','invoices','files','reminders'];
+let sb = null;
+const LOGO_IMG = "data:image/png;base64,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";
+const SIGN_IMG = "data:image/png;base64,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";
+
+const DB = (()=>{
+  let data = {}, remote = false;
+  function load(){ try{ data = JSON.parse(localStorage.getItem(NS)||'{}'); }catch{ data={}; } }
+  function save(){ localStorage.setItem(NS, JSON.stringify(data)); }   // cache local / offline
+  function coll(n){ if(!data[n]) data[n]=[]; return data[n]; }
+  load();
+  // '' → null para columnas numéricas/fecha de Postgres
+  const clean = r => { const o={}; for(const k in r) o[k]= (r[k]==='' ? null : r[k]); return o; };
+  function push(name,rec){ if(remote&&sb) sb.from(name).upsert(clean(rec),{onConflict:'id'}).then(({error})=>{ if(error) toast('Sync '+name+': '+error.message,'err'); }); }
+  function del(name,id){ if(remote&&sb) sb.from(name).delete().eq('id',id).then(({error})=>{ if(error) toast('Sync '+name+': '+error.message,'err'); }); }
+  function store(name){
+    return {
+      all:()=> coll(name).slice(),
+      get:(id)=> coll(name).find(r=>r.id===id)||null,
+      where:(fn)=> coll(name).filter(fn),
+      insert:(rec)=>{ const r={id:uid(),created_at:nowISO(),...rec}; coll(name).push(r); save(); push(name,r); return r; },
+      update:(id,patch)=>{ const r=coll(name).find(x=>x.id===id); if(r){Object.assign(r,patch,{updated_at:nowISO()});save();push(name,r);} return r; },
+      remove:(id)=>{ data[name]=coll(name).filter(x=>x.id!==id); save(); del(name,id); },
+    };
+  }
+  async function fetchAll(name){
+    let all=[],from=0; const PAGE=1000;
+    while(true){ const {data:rows,error}=await sb.from(name).select('*').range(from,from+PAGE-1); if(error) throw new Error(error.message); all=all.concat(rows||[]); if(!rows||rows.length<PAGE) break; from+=PAGE; }
+    return all;
+  }
+  async function loadAll(){
+    const fresh={}; for(const t of TABLES) fresh[t]=await fetchAll(t);
+    data=fresh; save(); remote=true;
+  }
+  // Arranque: 'ready' (sesión activa, datos cargados) | 'login' (falta iniciar sesión) | 'offline'
+  async function boot(){
+    if(!window.supabase||!SB_URL||!SB_KEY) return 'offline';
+    try{
+      sb = window.supabase.createClient(SB_URL, SB_KEY);
+      const { data:{ session } } = await sb.auth.getSession();
+      if(!session) return 'login';
+      await loadAll(); return 'ready';
+    }catch(e){ remote=false; console.warn('Supabase:',e); return 'offline'; }
+  }
+  async function login(password){
+    if(!sb) sb = window.supabase.createClient(SB_URL, SB_KEY);
+    const { error } = await sb.auth.signInWithPassword({ email:SB_AUTH_EMAIL, password });
+    if(error) throw new Error(error.message);
+    await loadAll(); return true;
+  }
+  async function logout(){ try{ if(sb) await sb.auth.signOut(); }catch{} remote=false; }
+  async function importAll(obj){
+    data=obj||{}; save();
+    if(remote&&sb){ for(const t of TABLES){ const rows=(data[t]||[]).map(clean); for(let i=0;i<rows.length;i+=500){ const {error}=await sb.from(t).upsert(rows.slice(i,i+500),{onConflict:'id'}); if(error){toast('Import '+t+': '+error.message,'err');break;} } } }
+  }
+  return { store, boot, login, logout, _raw:()=>data, _import:importAll, _save:save, isRemote:()=>remote };
+})();
+
+const Patients = DB.store('patients');
+const Sessions = DB.store('sessions');
+const Feedback = DB.store('session_feedback');
+const Reports  = DB.store('reports');
+const Invoices = DB.store('invoices');
+const Files    = DB.store('files');
+const Reminders= DB.store('reminders');
+
+/* Configuración (profesional, claves).
+   Datos del gabinete de Beatriz como valores por defecto → siempre aparecen
+   en las facturas aunque localStorage esté vacío (editable desde Configuración). */
+const DEFAULT_CFG = {
+  pro_name:'Beatriz Calabuig Sanfeliu',
+  pro_lic:'46928',            // Nº colegiada logopedas
+  pro_lic_psi:'469350',       // Nº colegiada psicólogos
+  clinic_name:'Beatriz Calabuig · Logopedia y Psicología',
+  nif:'24394511K',
+  address:'C/ Jesús 71, pta 2, 46007 Valencia',
+  phone:'', email:'',
+  ccc:'ES33 0075 0090 9407 0119 8768',
+  iva_exencion:'Factura exenta de IVA según art. 20.1 de la Ley 37/1992',
+  iva:'0', inv_prefix:'26', inv_seed:4,   // correlativo: próxima factura = 26004
+  default_fee:'', openai_model:'gpt-4o-mini',
+};
+const Config = {
+  get(){ let s={}; try{ s=JSON.parse(localStorage.getItem(NS+'_cfg')||'{}'); }catch{} return {...DEFAULT_CFG, ...s}; },
+  set(p){ let s={}; try{ s=JSON.parse(localStorage.getItem(NS+'_cfg')||'{}'); }catch{} const c={...s,...p}; localStorage.setItem(NS+'_cfg',JSON.stringify(c)); return c; },
+};
+
+/* ============================================================
+   IA — OpenAI (GPT + Whisper). Cliente directo (clave en Config).
+   Si no hay clave, devuelve un borrador determinista (offline).
+   ============================================================ */
+const AI = {
+  key(){ return (Config.get().openai_key||'').trim(); },
+  enabled(){ return !!AI.key(); },
+  async chat(system, user, {json=false}={}){
+    if(!AI.enabled()) return AI._fallbackChat(user);
+    const r = await fetch('https://api.openai.com/v1/chat/completions',{
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+AI.key()},
+      body:JSON.stringify({ model: Config.get().openai_model||'gpt-4o-mini',
+        messages:[{role:'system',content:system},{role:'user',content:user}],
+        temperature:0.4, ...(json?{response_format:{type:'json_object'}}:{}) })
+    });
+    if(!r.ok){ const t=await r.text(); throw new Error('OpenAI '+r.status+': '+t.slice(0,200)); }
+    const j = await r.json();
+    return j.choices[0].message.content.trim();
+  },
+  async transcribe(blob){
+    if(!AI.enabled()) throw new Error('Añade tu clave de OpenAI en Configuración para transcribir audio.');
+    const fd=new FormData(); fd.append('file',blob,'audio.webm'); fd.append('model','whisper-1'); fd.append('language','es');
+    const r=await fetch('https://api.openai.com/v1/audio/transcriptions',{method:'POST',headers:{'Authorization':'Bearer '+AI.key()},body:fd});
+    if(!r.ok){ const t=await r.text(); throw new Error('Whisper '+r.status+': '+t.slice(0,200)); }
+    return (await r.json()).text.trim();
+  },
+  _fallbackChat(user){
+    // Borrador estructurado sin IA (modo offline / sin clave)
+    return `[Borrador automático — sin IA conectada]\n\n`+
+      `Resumen clínico:\n${user.slice(0,600)}\n\n`+
+      `Evolución: el paciente continúa el plan de intervención previsto.\n`+
+      `Recomendaciones: mantener la pauta de ejercicios y revisar objetivos en la próxima sesión.\n\n`+
+      `(Conecta tu clave de OpenAI en Configuración para generar texto clínico real.)`;
+  },
+};
+
+/* ============================================================
+   APP / ROUTER
+   ============================================================ */
+const NAV = [
+  {sec:'Clínica'},
+  {id:'dashboard',  ic:'◧', label:'Dashboard'},
+  {id:'patients',   ic:'☺', label:'Pacientes'},
+  {id:'calendar',   ic:'▦', label:'Calendario'},
+  {id:'sessions',   ic:'⊞', label:'Sesiones'},
+  {sec:'Documentación'},
+  {id:'reports',    ic:'▤', label:'Informes'},
+  {id:'invoices',   ic:'€', label:'Facturación'},
+  {sec:'Sistema'},
+  {id:'config',     ic:'⚙', label:'Configuración'},
+];
+
+const App = {
+  page:'dashboard', param:null,
+  navigate(page,param=null){ App.page=page; App.param=param; App.render(); window.scrollTo(0,0); $('#main').scrollTop=0; },
+  render(){ App.renderSidebar(); const fn=Pages[App.page]||Pages.dashboard; $('#main').innerHTML=''; fn($('#main'),App.param); },
+  renderSidebar(){
+    const cfg=Config.get();
+    const pendInvoices=Invoices.where(i=>i.status==='pendiente').length;
+    const todayReminders=Reminders.where(r=>!r.done && r.date<=todayISO()).length;
+    let h=`<div class="brand" style="display:block;text-align:center;padding:10px 8px 16px"><img src="${LOGO_IMG}" alt="Beatriz Calabuig · Logopedia y Psicología" style="max-width:188px;width:100%;height:auto"></div>`;
+    for(const it of NAV){
+      if(it.sec){ h+=`<div class="nav-sec">${esc(it.sec)}</div>`; continue; }
+      let badge='';
+      if(it.id==='invoices'&&pendInvoices) badge=`<span class="badge">${pendInvoices}</span>`;
+      if(it.id==='dashboard'&&todayReminders) badge=`<span class="badge">${todayReminders}</span>`;
+      h+=`<button class="nav-item ${App.page===it.id?'active':''}" data-nav="${it.id}"><span class="ic">${it.ic}</span>${esc(it.label)}${badge}</button>`;
+    }
+    h+=`<div class="sidebar-foot">v0.5 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
+    const sb=$('#sidebar'); sb.innerHTML=h;
+    $$('[data-nav]',sb).forEach(b=>b.onclick=()=>App.navigate(b.dataset.nav));
+  }
+};
+
+/* ---------- Modal helper ---------- */
+function modal({title,body,foot,wide=false,onMount}){
+  const root=$('#modal-root');
+  const bg=document.createElement('div'); bg.className='modal-bg';
+  bg.innerHTML=`<div class="modal ${wide?'wide':''}">
+    <div class="modal-head"><h3>${esc(title)}</h3><button class="x" data-close>×</button></div>
+    <div class="modal-body">${body}</div>
+    ${foot?`<div class="modal-foot">${foot}</div>`:''}</div>`;
+  root.appendChild(bg);
+  const close=()=>bg.remove();
+  bg.addEventListener('click',e=>{ if(e.target===bg) close(); });
+  $('[data-close]',bg).onclick=close;
+  const esc2=e=>{ if(e.key==='Escape'){close();document.removeEventListener('keydown',esc2);} };
+  document.addEventListener('keydown',esc2);
+  if(onMount) onMount(bg,close);
+  return {el:bg,close};
+}
+
+/* ---------- estados de sesión / informe ---------- */
+const SES_STATUS={ programada:{label:'Programada',pill:'amber'}, realizada:{label:'Realizada',pill:'green'}, cancelada:{label:'Cancelada',pill:'red'} };
+const REP_TYPES={ seguimiento:'Seguimiento', alta:'Alta', evaluacion:'Evaluación', escolar:'Escolar' };
+const INV_STATUS={ pendiente:{label:'Pendiente',pill:'amber'}, enviado:{label:'Enviado',pill:'blue'}, pagado:{label:'Pagado',pill:'green'} };
+
+/* ============================================================
+   PÁGINAS
+   ============================================================ */
+const Pages = {};
+
+/* ---------- DASHBOARD ---------- */
+Pages.dashboard = (el)=>{
+  const cfg=Config.get();
+  const pts=Patients.all();
+  const activos=pts.filter(p=>p.status!=='alta').length;
+  const ses=Sessions.all();
+  const weekStart=new Date(); weekStart.setDate(weekStart.getDate()-((weekStart.getDay()+6)%7));
+  const wkISO=weekStart.toISOString().slice(0,10);
+  const sesWeek=ses.filter(s=>s.date>=wkISO && s.status==='realizada').length;
+  const upcoming=ses.filter(s=>s.status==='programada'&&s.date>=todayISO()).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
+  const reps=Reports.all();
+  const rems=Reminders.where(r=>!r.done).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const recent=[...ses].sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).slice(0,7);
+
+  el.innerHTML=`<div class="page">
+    <div class="page-head"><div>
+      <h1>Buenos días${cfg.pro_name?', '+esc(cfg.pro_name.split(' ')[0]):''} 👋</h1>
+      <div class="sub">${new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+    </div>
+    <div class="actions">
+      <button class="btn" data-new-patient>＋ Paciente</button>
+      <button class="btn primary" data-quick>⚡ Registrar sesión</button>
+    </div></div>
+
+    <div class="stat" style="margin-bottom:22px">
+      <div class="card"><div class="k">☺ Pacientes activos</div><div class="v">${activos} <small>/ ${pts.length}</small></div></div>
+      <div class="card"><div class="k">✓ Sesiones esta semana</div><div class="v">${sesWeek}</div></div>
+      <div class="card"><div class="k">▤ Informes generados</div><div class="v">${reps.length}</div></div>
+      <div class="card"><div class="k">🔔 Recordatorios</div><div class="v">${rems.length}</div></div>
+    </div>
+
+    <div class="cols">
+      <div>
+        <div class="sec-title">Próximas sesiones</div>
+        <div class="card" style="padding:6px">
+          ${upcoming.length?`<table class="table"><tbody>${upcoming.map(s=>{const p=Patients.get(s.patient_id);return `
+            <tr class="row-click" data-open="${s.patient_id}">
+              <td><span class="av" style="background:${colorFor(p?.name)}">${initials(p?.name)}</span></td>
+              <td><b>${esc(p?.name||'—')}</b><div class="muted" style="font-size:12px">${esc(s.objective||'Sesión')}</div></td>
+              <td style="text-align:right"><div>${fmtDate(s.date)}</div><div class="muted" style="font-size:12px">${relDays(s.date)} · ${esc(s.time||'')}</div></td>
+            </tr>`;}).join('')}</tbody></table>`
+            :`<div class="empty"><span class="em">📅</span>No hay sesiones programadas</div>`}
+        </div>
+        <div class="sec-title" style="margin-top:22px">Actividad reciente</div>
+        <div class="card" style="padding:6px">
+          ${recent.length?`<table class="table"><tbody>${recent.map(s=>{const p=Patients.get(s.patient_id);const st=SES_STATUS[s.status]||SES_STATUS.programada;return `
+            <tr class="row-click" data-open="${s.patient_id}">
+              <td><b>${esc(p?.name||'—')}</b></td>
+              <td><span class="pill ${st.pill}"><span class="dot"></span>${st.label}</span></td>
+              <td class="muted" style="text-align:right">${fmtDate(s.date)}</td>
+            </tr>`;}).join('')}</tbody></table>`
+            :`<div class="empty"><span class="em">🗒️</span>Aún no hay actividad</div>`}
+        </div>
+      </div>
+      <div>
+        <div class="sec-title">Recordatorios</div>
+        <div class="card" style="padding:6px">
+          ${rems.length?rems.slice(0,8).map(r=>`
+            <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-bottom:1px solid var(--line)">
+              <input type="checkbox" data-rem-done="${r.id}" style="margin-top:3px">
+              <div style="flex:1"><div>${esc(r.text)}</div>
+              <div class="muted" style="font-size:12px">${r.date?fmtDate(r.date)+' · '+relDays(r.date):''}${r.patient_id?' · '+esc(Patients.get(r.patient_id)?.name||''):''}</div></div>
+            </div>`).join('')
+            :`<div class="empty"><span class="em">🔔</span>Sin recordatorios</div>`}
+          <div style="padding:8px 10px"><button class="btn sm ghost" data-add-rem>＋ Nuevo recordatorio</button></div>
+        </div>
+        ${!AI.enabled()?`<div class="ai-box" style="margin-top:18px"><div class="ai-h">✨ Asistente IA</div>
+          <div style="font-size:13px;color:var(--text-soft)">Conecta tu clave de OpenAI para transcribir audio de sesiones y generar informes clínicos automáticamente.</div>
+          <button class="btn sm" style="margin-top:10px" data-go-config>Configurar IA →</button></div>`:''}
+      </div>
+    </div>
+  </div>`;
+
+  $('[data-new-patient]',el).onclick=()=>patientForm();
+  $('[data-quick]',el).onclick=()=>quickSession();
+  $('[data-go-config]',el)&&($('[data-go-config]',el).onclick=()=>App.navigate('config'));
+  $('[data-add-rem]',el).onclick=()=>reminderForm();
+  $$('[data-open]',el).forEach(r=>r.onclick=()=>App.navigate('patient',r.dataset.open));
+  $$('[data-rem-done]',el).forEach(c=>c.onchange=()=>{ Reminders.update(c.dataset.remDone,{done:true}); toast('Recordatorio completado','ok'); App.render(); });
+};
+
+/* ---------- PACIENTES ---------- */
+Pages.patients = (el)=>{
+  let q='', filter='activos';
+  const draw=()=>{
+    let pts=Patients.all();
+    if(filter==='activos') pts=pts.filter(p=>p.status!=='alta');
+    else if(filter==='alta') pts=pts.filter(p=>p.status==='alta');
+    if(q) pts=pts.filter(p=>(p.name+' '+(p.school||'')+' '+(p.diagnosis||'')).toLowerCase().includes(q.toLowerCase()));
+    pts.sort((a,b)=>a.name.localeCompare(b.name));
+    const tb=$('#pt-body');
+    tb.innerHTML = pts.length?pts.map(p=>{
+      const last=Sessions.where(s=>s.patient_id===p.id&&s.status==='realizada').sort((a,b)=>b.date.localeCompare(a.date))[0];
+      const nSes=Sessions.where(s=>s.patient_id===p.id).length;
+      return `<tr class="row-click" data-open="${p.id}">
+        <td><div style="display:flex;align-items:center;gap:10px"><span class="av" style="background:${colorFor(p.name)}">${initials(p.name)}</span>
+          <div><b>${esc(p.name)}</b>${p.birth?`<div class="muted" style="font-size:12px">${age(p.birth)} años</div>`:''}</div></div></td>
+        <td>${esc(p.school||'—')}</td>
+        <td>${p.diagnosis?`<span class="pill purple">${esc(p.diagnosis)}</span>`:'<span class="muted">—</span>'}</td>
+        <td>${nSes} <span class="muted">ses.</span></td>
+        <td class="muted">${last?fmtDate(last.date):'—'}</td>
+        <td>${p.status==='alta'?'<span class="pill gray">Alta</span>':'<span class="pill green"><span class="dot"></span>Activo</span>'}</td>
+      </tr>`;
+    }).join(''):`<tr><td colspan="6"><div class="empty"><span class="em">☺</span>${q?'Sin resultados':'No hay pacientes todavía'}</div></td></tr>`;
+    $$('[data-open]',tb).forEach(r=>r.onclick=()=>App.navigate('patient',r.dataset.open));
+  };
+  el.innerHTML=`<div class="page">
+    <div class="page-head"><div><h1>Pacientes</h1><div class="sub">${Patients.all().length} en total</div></div>
+      <div class="actions"><button class="btn primary" data-new>＋ Nuevo paciente</button></div></div>
+    <div class="toolbar">
+      <div class="search"><span class="si">⌕</span><input id="pt-q" placeholder="Buscar por nombre, colegio o diagnóstico..."></div>
+      <div class="chips">
+        <button class="chip active" data-f="activos">Activos</button>
+        <button class="chip" data-f="alta">Alta</button>
+        <button class="chip" data-f="todos">Todos</button>
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="table"><thead><tr><th>Paciente</th><th>Colegio</th><th>Diagnóstico</th><th>Sesiones</th><th>Última sesión</th><th>Estado</th></tr></thead>
+      <tbody id="pt-body"></tbody></table>
+    </div>
+  </div>`;
+  draw();
+  $('#pt-q',el).oninput=e=>{q=e.target.value;draw();};
+  $('[data-new]',el).onclick=()=>patientForm();
+  $$('[data-f]',el).forEach(c=>c.onclick=()=>{filter=c.dataset.f;$$('[data-f]',el).forEach(x=>x.classList.toggle('active',x===c));draw();});
+};
+
+/* ---------- FICHA PACIENTE ---------- */
+Pages.patient = (el,id)=>{
+  const p=Patients.get(id);
+  if(!p){ el.innerHTML='<div class="page"><div class="empty">Paciente no encontrado</div></div>'; return; }
+  let tab='sesiones';
+  const drawTab=()=>{
+    const c=$('#pt-tabcontent');
+    if(tab==='sesiones'){
+      const ses=Sessions.where(s=>s.patient_id===id).sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
+      c.innerHTML=`<div style="margin-bottom:14px"><button class="btn primary" data-add-ses>＋ Programar sesión</button></div>`+
+      (ses.length?`<div class="timeline">${ses.map(s=>{
+        const st=SES_STATUS[s.status]||SES_STATUS.programada;
+        const fbs=Feedback.where(f=>f.session_id===s.id);
+        return `<div class="tl-item ${s.status==='cancelada'?'cancel':s.status==='programada'?'prog':''}">
+          <div class="tl-date">${fmtDate(s.date)} ${s.time?'· '+esc(s.time):''} <span class="pill ${st.pill}" style="margin-left:6px">${st.label}</span></div>
+          <div class="card" style="margin-top:6px">
+            ${s.objective?`<div><b>Objetivo:</b> ${esc(s.objective)}</div>`:''}
+            ${s.evolution?`<div style="margin-top:4px">${esc(s.evolution)}</div>`:''}
+            ${s.duration?`<div class="muted" style="font-size:12px;margin-top:4px">Duración: ${esc(s.duration)} min</div>`:''}
+            ${fbs.map(f=>`<div class="ai-box" style="margin-top:8px">
+              ${f.text?`<div style="font-size:13px"><b>Notas:</b> ${esc(f.text)}</div>`:''}
+              ${f.transcription?`<div style="font-size:13px;margin-top:4px"><b>Transcripción:</b> ${esc(f.transcription)}</div>`:''}
+              ${f.summary?`<div style="font-size:13px;margin-top:6px"><b>✨ Resumen IA:</b> ${esc(f.summary)}</div>`:''}
+            </div>`).join('')}
+            <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+              ${s.status==='programada'?`<button class="btn sm green" data-done="${s.id}">✓ Marcar realizada</button>`:''}
+              <button class="btn sm" data-feedback="${s.id}">✨ Feedback / IA</button>
+              <button class="btn sm ghost" data-edit-ses="${s.id}">Editar</button>
+              <button class="btn sm ghost danger" data-del-ses="${s.id}">Eliminar</button>
+            </div>
+          </div></div>`;}).join('')}</div>`
+      :`<div class="empty"><span class="em">⊞</span>Sin sesiones registradas</div>`);
+      $('[data-add-ses]',c).onclick=()=>sessionForm({patient_id:id});
+      $$('[data-done]',c).forEach(b=>b.onclick=()=>{Sessions.update(b.dataset.done,{status:'realizada'});toast('Sesión realizada','ok');drawTab();App.renderSidebar();});
+      $$('[data-feedback]',c).forEach(b=>b.onclick=()=>feedbackModal(b.dataset.feedback,drawTab));
+      $$('[data-edit-ses]',c).forEach(b=>b.onclick=()=>sessionForm(Sessions.get(b.dataset.editSes)));
+      $$('[data-del-ses]',c).forEach(b=>b.onclick=()=>{ if(confirm('¿Eliminar esta sesión?')){Sessions.remove(b.dataset.delSes);toast('Sesión eliminada');drawTab();} });
+    }
+    else if(tab==='informes'){
+      const reps=Reports.where(r=>r.patient_id===id).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
+      c.innerHTML=`<div style="margin-bottom:14px"><button class="btn primary" data-gen-rep>✨ Generar informe</button></div>`+
+      (reps.length?`<div class="grid">${reps.map(r=>`
+        <div class="card"><div style="display:flex;align-items:center;gap:10px">
+          <span class="pill blue">${REP_TYPES[r.type]||r.type}</span>
+          <b>${esc(r.title||'Informe')}</b>
+          <span class="muted" style="margin-left:auto;font-size:12px">${fmtDate(r.created_at)}</span></div>
+          <div class="muted" style="font-size:13px;margin-top:8px;white-space:pre-wrap;max-height:80px;overflow:hidden">${esc((r.content||'').slice(0,260))}…</div>
+          <div style="margin-top:10px;display:flex;gap:6px"><button class="btn sm" data-view-rep="${r.id}">Ver / Exportar</button>
+          <button class="btn sm ghost danger" data-del-rep="${r.id}">Eliminar</button></div>
+        </div>`).join('')}</div>`
+      :`<div class="empty"><span class="em">▤</span>Sin informes</div>`);
+      $('[data-gen-rep]',c).onclick=()=>reportForm({patient_id:id});
+      $$('[data-view-rep]',c).forEach(b=>b.onclick=()=>viewReport(b.dataset.viewRep));
+      $$('[data-del-rep]',c).forEach(b=>b.onclick=()=>{if(confirm('¿Eliminar informe?')){Reports.remove(b.dataset.delRep);toast('Informe eliminado');drawTab();}});
+    }
+    else if(tab==='archivos'){
+      const fls=Files.where(f=>f.patient_id===id).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
+      c.innerHTML=`<div style="margin-bottom:14px"><button class="btn primary" data-add-file>＋ Añadir archivo</button>
+        <span class="muted" style="font-size:12px;margin-left:8px">Los archivos se guardan en este navegador.</span></div>`+
+      (fls.length?`<div class="card" style="padding:6px"><table class="table"><tbody>${fls.map(f=>`
+        <tr><td>📎 <b>${esc(f.name)}</b></td><td class="muted">${esc(f.kind||'')}</td><td class="muted">${fmtDate(f.created_at)}</td>
+        <td style="text-align:right"><button class="btn sm ghost" data-dl-file="${f.id}">Descargar</button>
+        <button class="btn sm ghost danger" data-del-file="${f.id}">×</button></td></tr>`).join('')}</tbody></table></div>`
+      :`<div class="empty"><span class="em">📎</span>Sin archivos</div>`);
+      $('[data-add-file]',c).onclick=()=>fileUpload(id,drawTab);
+      $$('[data-dl-file]',c).forEach(b=>b.onclick=()=>{const f=Files.get(b.dataset.dlFile);const a=document.createElement('a');a.href=f.data;a.download=f.name;a.click();});
+      $$('[data-del-file]',c).forEach(b=>b.onclick=()=>{if(confirm('¿Eliminar archivo?')){Files.remove(b.dataset.delFile);drawTab();}});
+    }
+    else if(tab==='ficha'){
+      c.innerHTML=`<div class="card"><dl class="kv">
+        <dt>Fecha nacimiento</dt><dd>${p.birth?fmtDate(p.birth)+` (${age(p.birth)} años)`:'—'}</dd>
+        <dt>Colegio / Centro</dt><dd>${esc(p.school||'—')}</dd>
+        <dt>Curso</dt><dd>${esc(p.grade||'—')}</dd>
+        <dt>Diagnóstico</dt><dd>${esc(p.diagnosis||'—')}</dd>
+        <dt>Tutor/a legal</dt><dd>${esc(p.tutor||'—')}</dd>
+        <dt>Teléfono</dt><dd>${p.phone?`<a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>`:'—'}</dd>
+        <dt>Email</dt><dd>${p.email?`<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>`:'—'}</dd>
+        <dt>DNI/NIF</dt><dd>${esc(p.dni||'—')}</dd>
+        <dt>Dirección</dt><dd>${esc(p.address||'—')}</dd>
+        <dt>Tarifa sesión</dt><dd>${p.fee?eur(p.fee):'—'}</dd>
+        <dt>Observaciones</dt><dd style="white-space:pre-wrap">${esc(p.notes||'—')}</dd>
+      </dl></div>`;
+    }
+    $$('.tab',el).forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  };
+  el.innerHTML=`<div class="page">
+    <button class="btn ghost sm" data-back style="margin-bottom:14px">← Pacientes</button>
+    <div class="detail-head">
+      <span class="av" style="background:${colorFor(p.name)}">${initials(p.name)}</span>
+      <div style="flex:1">
+        <h1 style="font-size:24px">${esc(p.name)} ${p.status==='alta'?'<span class="pill gray" style="vertical-align:middle">Alta</span>':'<span class="pill green" style="vertical-align:middle"><span class="dot"></span>Activo</span>'}</h1>
+        <div class="sub">${p.birth?age(p.birth)+' años · ':''}${esc(p.school||'')}${p.diagnosis?' · '+esc(p.diagnosis):''}</div>
+      </div>
+      <div class="actions">
+        <button class="btn green" data-quick-done>⚡ Sesión realizada</button>
+        <button class="btn" data-edit>Editar</button>
+        <button class="btn ghost danger" data-del>Eliminar</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab" data-tab="sesiones">Sesiones</button>
+      <button class="tab" data-tab="informes">Informes</button>
+      <button class="tab" data-tab="archivos">Archivos</button>
+      <button class="tab" data-tab="ficha">Ficha</button>
+    </div>
+    <div id="pt-tabcontent"></div>
+  </div>`;
+  drawTab();
+  $('[data-back]',el).onclick=()=>App.navigate('patients');
+  $('[data-edit]',el).onclick=()=>patientForm(p);
+  $('[data-del]',el).onclick=()=>{ if(confirm('¿Eliminar paciente y sus sesiones? Esta acción no se puede deshacer.')){
+    Sessions.where(s=>s.patient_id===id).forEach(s=>Sessions.remove(s.id));
+    Patients.remove(id); toast('Paciente eliminado'); App.navigate('patients'); } };
+  $('[data-quick-done]',el).onclick=()=>{
+    const s=Sessions.insert({patient_id:id,date:todayISO(),time:new Date().toTimeString().slice(0,5),duration:p.default_duration||45,status:'realizada',objective:''});
+    toast('✓ Sesión registrada','ok'); tab='sesiones'; drawTab(); App.renderSidebar();
+  };
+  $$('.tab',el).forEach(t=>t.onclick=()=>{tab=t.dataset.tab;drawTab();});
+};
+
+/* ---------- CALENDARIO ---------- */
+Pages.calendar = (el)=>{
+  let cur=new Date(); cur.setDate(1);
+  const draw=()=>{
+    const y=cur.getFullYear(), m=cur.getMonth();
+    const first=new Date(y,m,1); const start=(first.getDay()+6)%7;
+    const days=new Date(y,m+1,0).getDate();
+    const ses=Sessions.all();
+    const byDate={}; ses.forEach(s=>{ (byDate[s.date]=byDate[s.date]||[]).push(s); });
+    let cells='';
+    for(let i=0;i<start;i++){ const d=new Date(y,m,-(start-1-i)); cells+=cell(d,true,byDate); }
+    for(let d=1;d<=days;d++){ cells+=cell(new Date(y,m,d),false,byDate); }
+    const rem=(start+days)%7; for(let i=1;rem&&i<=7-rem;i++){ cells+=cell(new Date(y,m+1,i),true,byDate); }
+    $('#cal-grid').innerHTML=cells;
+    $('#cal-title').textContent=cur.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+    $$('.cal-cell',el).forEach(c=>{ c.onclick=()=>{ const d=c.dataset.date; sessionForm({date:d}); }; });
+    $$('.cal-ev',el).forEach(ev=>ev.onclick=e=>{ e.stopPropagation(); App.navigate('patient',ev.dataset.pt); });
+  };
+  function cell(d,out,byDate){
+    const iso=d.toISOString().slice(0,10);
+    const evs=(byDate[iso]||[]).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+    const isToday=iso===todayISO();
+    return `<div class="cal-cell ${out?'out':''} ${isToday?'today':''}" data-date="${iso}">
+      <div class="cn">${d.getDate()}</div>
+      ${evs.slice(0,4).map(s=>{const p=Patients.get(s.patient_id);const cls=s.status==='realizada'?'done':s.status==='cancelada'?'cancel':'';
+        return `<div class="cal-ev ${cls}" data-pt="${s.patient_id}" title="${esc(p?.name||'')}">${s.time?esc(s.time)+' ':''}${esc(p?.name||'Sesión')}</div>`;}).join('')}
+      ${evs.length>4?`<div class="muted" style="font-size:10px;padding:2px 5px">+${evs.length-4} más</div>`:''}
+    </div>`;
+  }
+  el.innerHTML=`<div class="page">
+    <div class="page-head"><div><h1>Calendario</h1><div class="sub">Haz clic en un día para programar una sesión</div></div>
+      <div class="actions">
+        <button class="btn sm" data-prev>←</button>
+        <button class="btn sm" data-today>Hoy</button>
+        <button class="btn sm" data-next>→</button>
+        <button class="btn primary" data-new>＋ Sesión</button>
+      </div></div>
+    <h2 id="cal-title" style="text-transform:capitalize;font-size:18px;margin-bottom:12px"></h2>
+    <div class="cal"><div class="cal-head"><div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div></div>
+    <div class="cal-grid" id="cal-grid"></div></div>
+  </div>`;
+  draw();
+  $('[data-prev]',el).onclick=()=>{cur.setMonth(cur.getMonth()-1);draw();};
+  $('[data-next]',el).onclick=()=>{cur.setMonth(cur.getMonth()+1);draw();};
+  $('[data-today]',el).onclick=()=>{cur=new Date();cur.setDate(1);draw();};
+  $('[data-new]',el).onclick=()=>sessionForm({date:todayISO()});
+};
+
+/* ---------- SESIONES (global) ---------- */
+Pages.sessions = (el)=>{
+  let filter='todas', q='';
+  const draw=()=>{
+    let ses=Sessions.all();
+    if(filter!=='todas') ses=ses.filter(s=>s.status===filter);
+    if(q){ ses=ses.filter(s=>{const p=Patients.get(s.patient_id);return (p?.name||'').toLowerCase().includes(q.toLowerCase());}); }
+    ses.sort((a,b)=>(b.date+(b.time||'')).localeCompare(a.date+(a.time||'')));
+    const totalSes=ses.length, CAP=300; ses=ses.slice(0,CAP);
+    $('#ses-count').textContent = totalSes>CAP?`Mostrando ${CAP} de ${totalSes} · afina con la búsqueda o los filtros`:`${totalSes} resultado${totalSes===1?'':'s'}`;
+    $('#ses-body').innerHTML= ses.length?ses.map(s=>{
+      const p=Patients.get(s.patient_id); const st=SES_STATUS[s.status]||SES_STATUS.programada;
+      return `<tr class="row-click" data-open="${s.patient_id}">
+        <td>${fmtDate(s.date)}${s.time?' · '+esc(s.time):''}</td>
+        <td><b>${esc(p?.name||'—')}</b></td>
+        <td>${esc(s.objective||'—')}</td>
+        <td class="muted">${s.amount?eur(s.amount):'—'}</td>
+        <td>${s.invoice_ref?'<span class="pill green"><span class="dot"></span>Facturada</span>':(s.paid?'<span class="pill blue">Pagada</span>':'<span class="pill gray">—</span>')}</td>
+        <td><span class="pill ${st.pill}"><span class="dot"></span>${st.label}</span></td>
+        <td style="text-align:right">${s.status==='programada'?`<button class="btn sm green" data-done="${s.id}">✓</button>`:''}</td>
+      </tr>`;}).join(''):`<tr><td colspan="7"><div class="empty"><span class="em">⊞</span>Sin sesiones</div></td></tr>`;
+    $$('[data-open]',el).forEach(r=>r.onclick=()=>App.navigate('patient',r.dataset.open));
+    $$('[data-done]',el).forEach(b=>b.onclick=e=>{e.stopPropagation();Sessions.update(b.dataset.done,{status:'realizada'});toast('Sesión realizada','ok');draw();App.renderSidebar();});
+  };
+  el.innerHTML=`<div class="page">
+    <div class="page-head"><div><h1>Sesiones</h1><div class="sub">${Sessions.all().length} registradas · <span id="ses-count"></span></div></div>
+      <div class="actions"><button class="btn primary" data-new>＋ Nueva sesión</button></div></div>
+    <div class="toolbar">
+      <div class="search"><span class="si">⌕</span><input id="ses-q" placeholder="Buscar paciente..."></div>
+      <div class="chips">
+        <button class="chip active" data-f="todas">Todas</button>
+        <button class="chip" data-f="programada">Programadas</button>
+        <button class="chip" data-f="realizada">Realizadas</button>
+        <button class="chip" data-f="cancelada">Canceladas</button>
+      </div></div>
+    <div class="card" style="padding:0;overflow:hidden"><table class="table">
+      <thead><tr><th>Fecha</th><th>Paciente</th><th>Objetivo</th><th>Importe</th><th>Cobro</th><th>Estado</th><th></th></tr></thead>
+      <tbody id="ses-body"></tbody></table></div>
+  </div>`;
+  draw();
+  $('#ses-q',el).oninput=e=>{q=e.target.value;draw();};
+  $('[data-new]',el).onclick=()=>sessionForm({date:todayISO()});
+  $$('[data-f]',el).forEach(c=>c.onclick=()=>{filter=c.dataset.f;$$('[data-f]',el).forEach(x=>x.classList.toggle('active',x===c));draw();});
+};
+
+/* ---------- INFORMES (global) ---------- */
+Pages.reports = (el)=>{
+  const reps=Reports.all().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
+  el.innerHTML=`<div class="page">
+    <div class="page-head"><div><h1>Informes</h1><div class="sub">${reps.length} generados</div></div>
+      <div class="actions"><button class="btn primary" data-new>✨ Generar informe</button></div></div>
+    ${reps.length?`<div class="card" style="padding:0;overflow:hidden"><table class="table">
+      <thead><tr><th>Paciente</th><th>Tipo</th><th>Título</th><th>Fecha</th><th></th></tr></thead><tbody>
+      ${reps.map(r=>{const p=Patients.get(r.patient_id);return `<tr>
+        <td><b>${esc(p?.name||'—')}</b></td><td><span class="pill blue">${REP_TYPES[r.type]||r.type}</span></td>
+        <td>${esc(r.title||'—')}</td><td class="muted">${fmtDate(r.created_at)}</td>
+        <td style="text-align:right"><button class="btn sm" data-view="${r.id}">Ver / Exportar</button></td></tr>`;}).join('')}
+      </tbody></table></div>`
+    :`<div class="empty"><span class="em">▤</span>No hay informes. Genera el primero desde un paciente.</div>`}
+  </div>`;
+  $('[data-new]',el).onclick=()=>reportForm({});
+  $$('[data-view]',el).forEach(b=>b.onclick=()=>viewReport(b.dataset.view));
+};
+
+/* ---------- FACTURACIÓN ---------- */
+Pages.invoices = (el)=>{
+  let filter='todas';
+  const draw=()=>{
+    let inv=Invoices.all();
+    if(filter!=='todas') inv=inv.filter(i=>i.status===filter);
+    inv.sort((a,b)=>(b.number||'').localeCompare(a.number||''));
+    const all=Invoices.all();
+    const pend=all.filter(i=>i.status!=='pagado').reduce((s,i)=>s+(+i.total||0),0);
+    const paid=all.filter(i=>i.status==='pagado').reduce((s,i)=>s+(+i.total||0),0);
+    $('#inv-stats').innerHTML=`
+      <div class="card"><div class="k">Total facturado</div><div class="v">${eur(paid+pend)}</div></div>
+      <div class="card"><div class="k">Cobrado</div><div class="v" style="color:var(--green)">${eur(paid)}</div></div>
+      <div class="card"><div class="k">Pendiente de cobro</div><div class="v" style="color:var(--amber)">${eur(pend)}</div></div>`;
+    $('#inv-body').innerHTML= inv.length?inv.map(i=>{
+      const p=Patients.get(i.patient_id); const st=INV_STATUS[i.status]||INV_STATUS.pendiente;
+      return `<tr>
+        <td><b>${esc(i.number)}</b></td><td>${esc(clientName(p)||i.client_name||'—')}${i.retencion?' <span class="pill gold" style="font-size:10px">-15%</span>':''}</td>
+        <td>${fmtDate(i.date)}</td><td>${esc(i.concept||'—')}</td>
+        <td><b>${eur(i.total)}</b></td>
+        <td><span class="pill ${st.pill}"><span class="dot"></span>${st.label}</span></td>
+        <td style="text-align:right">
+          <button class="btn sm" data-view="${i.id}">Ver</button>
+          ${i.status!=='pagado'?`<button class="btn sm ghost" data-pay="${i.id}">Marcar pagada</button>`:''}
+          <button class="btn sm ghost danger" data-del="${i.id}">×</button></td></tr>`;}).join('')
+      :`<tr><td colspan="7"><div class="empty"><span class="em">€</span>Sin facturas</div></td></tr>`;
+    $$('[data-view]',el).forEach(b=>b.onclick=()=>viewInvoice(b.dataset.view));
+    $$('[data-pay]',el).forEach(b=>b.onclick=()=>{Invoices.update(b.dataset.pay,{status:'pagado',paid_at:todayISO()});toast('Factura cobrada','ok');draw();App.renderSidebar();});
+    $$('[data-del]',el).forEach(b=>b.onclick=()=>{if(confirm('¿Eliminar factura?')){Invoices.remove(b.dataset.del);draw();App.renderSidebar();}});
+  };
+  el.innerHTML=`<div class="page">
+    <div class="page-head"><div><h1>Facturación</h1><div class="sub">Módulo operativo · numeración automática</div></div>
+      <div class="actions"><button class="btn primary" data-new>＋ Nueva factura</button></div></div>
+    <div class="stat" id="inv-stats" style="margin-bottom:20px"></div>
+    <div class="toolbar"><div class="chips">
+      <button class="chip active" data-f="todas">Todas</button>
+      <button class="chip" data-f="pendiente">Pendientes</button>
+      <button class="chip" data-f="enviado">Enviadas</button>
+      <button class="chip" data-f="pagado">Pagadas</button>
+    </div></div>
+    <div class="card" style="padding:0;overflow:hidden"><table class="table">
+      <thead><tr><th>Nº</th><th>Cliente</th><th>Fecha</th><th>Concepto</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+      <tbody id="inv-body"></tbody></table></div>
+  </div>`;
+  draw();
+  $('[data-new]',el).onclick=()=>invoiceForm({});
+  $$('[data-f]',el).forEach(c=>c.onclick=()=>{filter=c.dataset.f;$$('[data-f]',el).forEach(x=>x.classList.toggle('active',x===c));draw();});
+};
+
+/* ---------- CONFIGURACIÓN ---------- */
+Pages.config = (el)=>{
+  const c=Config.get();
+  el.innerHTML=`<div class="page" style="max-width:760px">
+    <div class="page-head"><div><h1>Configuración</h1><div class="sub">Datos del gabinete, IA y copias de seguridad</div></div></div>
+
+    <div class="sec-title">Profesional / Gabinete</div>
+    <div class="card" style="margin-bottom:22px"><div class="form-grid">
+      <div class="field"><label>Nombre profesional</label><input class="inp" id="c_pro" value="${esc(c.pro_name||'')}"></div>
+      <div class="field"><label>Nº colegiado/a</label><input class="inp" id="c_col" value="${esc(c.pro_lic||'')}"></div>
+      <div class="field full"><label>Nombre del gabinete</label><input class="inp" id="c_clinic" value="${esc(c.clinic_name||'')}"></div>
+      <div class="field"><label>NIF / CIF</label><input class="inp" id="c_nif" value="${esc(c.nif||'')}"></div>
+      <div class="field"><label>Teléfono</label><input class="inp" id="c_phone" value="${esc(c.phone||'')}"></div>
+      <div class="field"><label>Email</label><input class="inp" id="c_email" value="${esc(c.email||'')}"></div>
+      <div class="field"><label>Tarifa sesión por defecto (€)</label><input class="inp" id="c_fee" type="number" value="${esc(c.default_fee||'')}"></div>
+      <div class="field full"><label>Dirección</label><input class="inp" id="c_addr" value="${esc(c.address||'')}"></div>
+      <div class="field"><label>IVA aplicable (%)</label><input class="inp" id="c_iva" type="number" value="${c.iva!=null?esc(c.iva):'0'}"><div class="hint">Servicios sanitarios suelen estar exentos (0%).</div></div>
+      <div class="field"><label>Prefijo factura</label><input class="inp" id="c_invprefix" value="${esc(c.inv_prefix||String(new Date().getFullYear()).slice(2))}"></div>
+      <div class="field full"><label>Nº cuenta (CCC / IBAN) para cobros</label><input class="inp" id="c_ccc" value="${esc(c.ccc||'')}"></div>
+      <div class="field full"><label>Texto de exención de IVA</label><input class="inp" id="c_exen" value="${esc(c.iva_exencion||'Factura exenta de IVA según art. 20.1 de la Ley 37/1992')}"></div>
+    </div></div>
+
+    <div class="sec-title">Inteligencia Artificial (OpenAI)</div>
+    <div class="card" style="margin-bottom:22px">
+      <div class="field"><label>Clave API de OpenAI</label>
+        <input class="inp" id="c_key" type="password" placeholder="sk-..." value="${esc(c.openai_key||'')}">
+        <div class="hint">Se guarda solo en este navegador. Necesaria para transcribir audio (Whisper) y generar informes (GPT). Estado: <b>${AI.enabled()?'<span style="color:var(--green)">Conectada ✓</span>':'sin conectar'}</b></div>
+      </div>
+      <div class="field"><label>Modelo de texto</label>
+        <select class="inp" id="c_model">
+          ${['gpt-4o-mini','gpt-4o','gpt-4.1-mini','gpt-4.1'].map(m=>`<option ${c.openai_model===m?'selected':''}>${m}</option>`).join('')}
+        </select></div>
+    </div>
+
+    <div class="sec-title">Backend (Supabase) — preparado para el futuro</div>
+    <div class="card" style="margin-bottom:22px"><div class="form-grid">
+      <div class="field"><label>Supabase URL</label><input class="inp" id="c_sburl" placeholder="https://xxxx.supabase.co" value="${esc(c.supabase_url||'')}"></div>
+      <div class="field"><label>Supabase anon key</label><input class="inp" id="c_sbkey" type="password" value="${esc(c.supabase_key||'')}"></div>
+      <div class="field full"><div class="hint">Hoy los datos viven en este navegador. Cuando crees el proyecto Supabase, rellena estos campos; la capa <code>DB</code> está diseñada para migrarse sin reescribir las pantallas.</div></div>
+    </div></div>
+
+    <div class="sec-title">Copia de seguridad</div>
+    <div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" data-export>⬇ Exportar todos los datos (JSON)</button>
+      <button class="btn" data-import>⬆ Importar datos</button>
+      <button class="btn" data-seed>Cargar datos de ejemplo</button>
+      <button class="btn danger" data-reset>Borrar todo</button>
+      <button class="btn" data-logout>🔒 Cerrar sesión</button>
+    </div><div class="hint" style="margin-top:8px">Los datos se guardan en Supabase. «Cerrar sesión» pedirá la contraseña de nuevo en este dispositivo.</div></div>
+
+    <div style="margin-top:24px"><button class="btn primary lg" data-save>Guardar configuración</button></div>
+  </div>`;
+
+  $('[data-save]',el).onclick=()=>{
+    Config.set({
+      pro_name:$('#c_pro').value.trim(), pro_lic:$('#c_col').value.trim(), clinic_name:$('#c_clinic').value.trim(),
+      nif:$('#c_nif').value.trim(), phone:$('#c_phone').value.trim(), email:$('#c_email').value.trim(),
+      default_fee:$('#c_fee').value, address:$('#c_addr').value.trim(), iva:$('#c_iva').value,
+      inv_prefix:$('#c_invprefix').value.trim(), ccc:$('#c_ccc').value.trim(), iva_exencion:$('#c_exen').value.trim(),
+      openai_key:$('#c_key').value.trim(),
+      openai_model:$('#c_model').value, supabase_url:$('#c_sburl').value.trim(), supabase_key:$('#c_sbkey').value.trim()
+    });
+    toast('Configuración guardada','ok'); App.render();
+  };
+  $('[data-export]',el).onclick=()=>{
+    const blob=new Blob([JSON.stringify({data:DB._raw(),cfg:Config.get(),exported:nowISO()},null,2)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`logopedia_backup_${todayISO()}.json`; a.click();
+  };
+  $('[data-import]',el).onclick=()=>{
+    const inp=document.createElement('input'); inp.type='file'; inp.accept='.json';
+    inp.onchange=()=>{ const f=inp.files[0]; const r=new FileReader();
+      r.onload=async()=>{ try{ const o=JSON.parse(r.result); if(o.cfg)localStorage.setItem(NS+'_cfg',JSON.stringify(o.cfg)); if(o.data)await DB._import(o.data); toast('Datos importados','ok'); App.render(); }catch(e){toast('Archivo no válido','err');} };
+      r.readAsText(f); };
+    inp.click();
+  };
+  $('[data-seed]',el).onclick=()=>{ if(confirm('¿Cargar datos de ejemplo? Se añadirán a los actuales.')){ seedDemo(); toast('Datos de ejemplo cargados','ok'); App.render(); } };
+  $('[data-reset]',el).onclick=()=>{ if(confirm('¿Borrar TODOS los datos y configuración? No se puede deshacer.')){ localStorage.removeItem(NS); localStorage.removeItem(NS+'_cfg'); location.reload(); } };
+  $('[data-logout]',el).onclick=async()=>{ if(confirm('¿Cerrar sesión en este dispositivo?')){ await DB.logout(); showLogin(); } };
+};
+
+/* ============================================================
+   FORMULARIOS / MODALES
+   ============================================================ */
+function patientForm(p={}){
+  const edit=!!p.id;
+  modal({ title: edit?'Editar paciente':'Nuevo paciente', wide:true,
+    body:`<div class="form-grid">
+      <div class="field full"><label>Nombre completo *</label><input class="inp" id="f_name" value="${esc(p.name||'')}"></div>
+      <div class="field"><label>Fecha de nacimiento</label><input class="inp" id="f_birth" type="date" value="${esc(p.birth||'')}"></div>
+      <div class="field"><label>Diagnóstico</label><input class="inp" id="f_diag" placeholder="p.ej. Dislalia, TEL..." value="${esc(p.diagnosis||'')}"></div>
+      <div class="field"><label>Colegio / Centro</label><input class="inp" id="f_school" value="${esc(p.school||'')}"></div>
+      <div class="field"><label>Curso</label><input class="inp" id="f_grade" value="${esc(p.grade||'')}"></div>
+      <div class="field"><label>Tutor/a legal</label><input class="inp" id="f_tutor" value="${esc(p.tutor||'')}"></div>
+      <div class="field"><label>Teléfono</label><input class="inp" id="f_phone" value="${esc(p.phone||'')}"></div>
+      <div class="field"><label>Email</label><input class="inp" id="f_email" type="email" value="${esc(p.email||'')}"></div>
+      <div class="field"><label>DNI/NIF (facturación)</label><input class="inp" id="f_dni" value="${esc(p.dni||'')}"></div>
+      <div class="field"><label>Tarifa por sesión (€)</label><input class="inp" id="f_fee" type="number" value="${esc(p.fee||Config.get().default_fee||'')}"></div>
+      <div class="field"><label>Estado</label><select class="inp" id="f_status"><option value="activo" ${p.status!=='alta'?'selected':''}>Activo</option><option value="alta" ${p.status==='alta'?'selected':''}>Alta</option></select></div>
+      <div class="field full"><label>Dirección</label><input class="inp" id="f_addr" value="${esc(p.address||'')}"></div>
+      <div class="field full"><label>Observaciones</label><textarea class="inp" id="f_notes">${esc(p.notes||'')}</textarea></div>
+    </div>`,
+    foot:`<button class="btn" data-close>Cancelar</button><button class="btn primary" data-save>${edit?'Guardar':'Crear paciente'}</button>`,
+    onMount:(bg,close)=>{ $('[data-save]',bg).onclick=()=>{
+      const name=$('#f_name',bg).value.trim(); if(!name){toast('El nombre es obligatorio','err');return;}
+      const rec={name,birth:$('#f_birth',bg).value,diagnosis:$('#f_diag',bg).value.trim(),school:$('#f_school',bg).value.trim(),
+        grade:$('#f_grade',bg).value.trim(),tutor:$('#f_tutor',bg).value.trim(),phone:$('#f_phone',bg).value.trim(),
+        email:$('#f_email',bg).value.trim(),dni:$('#f_dni',bg).value.trim(),fee:$('#f_fee',bg).value,
+        status:$('#f_status',bg).value,address:$('#f_addr',bg).value.trim(),notes:$('#f_notes',bg).value.trim()};
+      if(edit){Patients.update(p.id,rec);toast('Paciente actualizado','ok');} else {const np=Patients.insert(rec);toast('Paciente creado','ok');close();App.navigate('patient',np.id);return;}
+      close(); App.render();
+    };}
+  });
+}
+
+function sessionForm(s={}){
+  const edit=!!s.id;
+  const opts=Patients.all().sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<option value="${p.id}" ${s.patient_id===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
+  modal({ title: edit?'Editar sesión':'Nueva sesión',
+    body:`<div class="form-grid">
+      <div class="field full"><label>Paciente *</label><select class="inp" id="s_pt"><option value="">— Selecciona —</option>${opts}</select></div>
+      <div class="field"><label>Fecha *</label><input class="inp" id="s_date" type="date" value="${esc(s.date||todayISO())}"></div>
+      <div class="field"><label>Hora</label><input class="inp" id="s_time" type="time" value="${esc(s.time||'')}"></div>
+      <div class="field"><label>Duración (min)</label><input class="inp" id="s_dur" type="number" value="${esc(s.duration||45)}"></div>
+      <div class="field"><label>Estado</label><select class="inp" id="s_status">${Object.entries(SES_STATUS).map(([k,v])=>`<option value="${k}" ${s.status===k?'selected':(!s.status&&k==='programada'?'selected':'')}>${v.label}</option>`).join('')}</select></div>
+      <div class="field full"><label>Objetivo de la sesión</label><input class="inp" id="s_obj" value="${esc(s.objective||'')}"></div>
+      <div class="field full"><label>Evolución / notas</label><textarea class="inp" id="s_evo">${esc(s.evolution||'')}</textarea></div>
+    </div>`,
+    foot:`<button class="btn" data-close>Cancelar</button><button class="btn primary" data-save>${edit?'Guardar':'Crear sesión'}</button>`,
+    onMount:(bg,close)=>{ $('[data-save]',bg).onclick=()=>{
+      const pt=$('#s_pt',bg).value; if(!pt){toast('Selecciona un paciente','err');return;}
+      const rec={patient_id:pt,date:$('#s_date',bg).value,time:$('#s_time',bg).value,duration:$('#s_dur',bg).value,
+        status:$('#s_status',bg).value,objective:$('#s_obj',bg).value.trim(),evolution:$('#s_evo',bg).value.trim()};
+      if(edit)Sessions.update(s.id,rec); else Sessions.insert(rec);
+      toast('Sesión guardada','ok'); close(); App.render(); App.renderSidebar();
+    };}
+  });
+}
+
+function quickSession(){
+  const opts=Patients.all().sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  modal({ title:'⚡ Registro rápido de sesión',
+    body:`<div class="field"><label>Paciente *</label><select class="inp" id="q_pt" autofocus><option value="">— Selecciona —</option>${opts}</select></div>
+      <div class="ai-box"><div style="font-size:13px;color:var(--text-soft)">Se registra como <b>realizada</b> hoy con la duración por defecto. Podrás añadir feedback después.</div></div>`,
+    foot:`<button class="btn" data-close>Cancelar</button><button class="btn green" data-save>✓ Registrar sesión</button>`,
+    onMount:(bg,close)=>{ $('[data-save]',bg).onclick=()=>{
+      const pt=$('#q_pt',bg).value; if(!pt){toast('Selecciona un paciente','err');return;}
+      const p=Patients.get(pt);
+      Sessions.insert({patient_id:pt,date:todayISO(),time:new Date().toTimeString().slice(0,5),duration:p?.default_duration||45,status:'realizada'});
+      toast('✓ Sesión registrada','ok'); close(); App.render();
+    };}
+  });
+}
+
+function reminderForm(){
+  const opts=Patients.all().sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  modal({ title:'Nuevo recordatorio',
+    body:`<div class="field"><label>Texto *</label><input class="inp" id="r_txt" placeholder="p.ej. Preparar informe escolar"></div>
+      <div class="form-grid"><div class="field"><label>Fecha</label><input class="inp" id="r_date" type="date" value="${todayISO()}"></div>
+      <div class="field"><label>Paciente (opcional)</label><select class="inp" id="r_pt"><option value="">—</option>${opts}</select></div></div>`,
+    foot:`<button class="btn" data-close>Cancelar</button><button class="btn primary" data-save>Crear</button>`,
+    onMount:(bg,close)=>{ $('[data-save]',bg).onclick=()=>{
+      const t=$('#r_txt',bg).value.trim(); if(!t){toast('Escribe el recordatorio','err');return;}
+      Reminders.insert({text:t,date:$('#r_date',bg).value,patient_id:$('#r_pt',bg).value||null,done:false});
+      toast('Recordatorio creado','ok'); close(); App.render();
+    };}
+  });
+}
+
+/* ---------- FEEDBACK + IA ---------- */
+function feedbackModal(sessionId, after){
+  const s=Sessions.get(sessionId); const p=Patients.get(s.patient_id);
+  const existing=Feedback.where(f=>f.session_id===sessionId)[0]||{};
+  let mediaRec=null, chunks=[], recording=false;
+  modal({ title:'Feedback de sesión · '+(p?.name||''), wide:true,
+    body:`
+      <div class="field"><label>Notas de la sesión</label><textarea class="inp" id="fb_text" placeholder="Escribe notas informales; la IA las convertirá en texto clínico...">${esc(existing.text||'')}</textarea></div>
+      <div class="ai-box" style="margin-bottom:14px">
+        <div class="ai-h">🎙️ Dictar por voz (Whisper)</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn sm" id="fb_rec">● Grabar audio</button>
+          <span id="fb_recst" class="muted" style="font-size:12px"></span>
+        </div>
+        ${existing.transcription?`<div style="font-size:13px;margin-top:8px"><b>Transcripción:</b> <span id="fb_trans">${esc(existing.transcription)}</span></div>`:`<div id="fb_trans" style="font-size:13px;margin-top:8px"></div>`}
+      </div>
+      <div class="field"><label>✨ Resumen clínico IA</label>
+        <textarea class="inp" id="fb_sum" style="min-height:120px" placeholder="Pulsa «Generar» para crear un resumen clínico estructurado.">${esc(existing.summary||'')}</textarea>
+        <button class="btn sm" id="fb_gen" style="margin-top:8px">✨ Generar resumen IA</button>
+        <span id="fb_genst" class="muted" style="font-size:12px;margin-left:8px"></span>
+      </div>`,
+    foot:`<button class="btn" data-close>Cancelar</button><button class="btn primary" data-save>Guardar feedback</button>`,
+    onMount:(bg,close)=>{
+      const trans=$('#fb_trans',bg);
+      // Grabación
+      $('#fb_rec',bg).onclick=async()=>{
+        if(!recording){
+          try{
+            const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+            mediaRec=new MediaRecorder(stream); chunks=[];
+            mediaRec.ondataavailable=e=>chunks.push(e.data);
+            mediaRec.onstop=async()=>{
+              stream.getTracks().forEach(t=>t.stop());
+              const blob=new Blob(chunks,{type:'audio/webm'});
+              $('#fb_recst',bg).innerHTML='<span class="spin dark"></span> Transcribiendo...';
+              try{ const txt=await AI.transcribe(blob); trans.innerHTML='<b>Transcripción:</b> '+esc(txt); trans.dataset.txt=txt;
+                const cur=$('#fb_text',bg); cur.value=(cur.value?cur.value+'\n':'')+txt; $('#fb_recst',bg).textContent='✓ Transcrito'; }
+              catch(e){ $('#fb_recst',bg).textContent=''; toast(e.message,'err'); }
+            };
+            mediaRec.start(); recording=true; $('#fb_rec',bg).innerHTML='<span class="rec-dot"></span> Detener'; $('#fb_recst',bg).textContent='Grabando...';
+          }catch(e){ toast('No se pudo acceder al micrófono','err'); }
+        } else {
+          mediaRec.stop(); recording=false; $('#fb_rec',bg).innerHTML='● Grabar audio';
+        }
+      };
+      // Generar resumen IA
+      $('#fb_gen',bg).onclick=async()=>{
+        const notes=$('#fb_text',bg).value.trim();
+        if(!notes){toast('Escribe o dicta notas primero','err');return;}
+        $('#fb_genst',bg).innerHTML='<span class="spin dark"></span> Generando...';
+        try{
+          const sys='Eres un logopeda clínico. A partir de notas informales redacta un resumen clínico breve y profesional en español con: resumen de la sesión, evolución observada y recomendaciones. Sé conciso y objetivo.';
+          const user=`Paciente: ${p?.name||''} (${p?.diagnosis||'sin diagnóstico'}). Objetivo de la sesión: ${s.objective||'—'}.\nNotas:\n${notes}`;
+          const out=await AI.chat(sys,user);
+          $('#fb_sum',bg).value=out; $('#fb_genst',bg).textContent=AI.enabled()?'✓ Generado':'(borrador sin IA)';
+        }catch(e){ $('#fb_genst',bg).textContent=''; toast(e.message,'err'); }
+      };
+      $('[data-save]',bg).onclick=()=>{
+        const rec={session_id:sessionId, patient_id:s.patient_id, text:$('#fb_text',bg).value.trim(),
+          transcription:trans.dataset.txt||existing.transcription||'', summary:$('#fb_sum',bg).value.trim()};
+        if(existing.id)Feedback.update(existing.id,rec); else Feedback.insert(rec);
+        // vuelca evolución a la sesión si está vacía
+        if(rec.summary && !s.evolution) Sessions.update(sessionId,{evolution:rec.summary});
+        toast('Feedback guardado','ok'); close(); after&&after();
+      };
+    }
+  });
+}
+
+/* ---------- INFORMES ---------- */
+function reportForm(pre={}){
+  const opts=Patients.all().sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<option value="${p.id}" ${pre.patient_id===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
+  modal({ title:'✨ Generar informe clínico', wide:true,
+    body:`<div class="form-grid">
+        <div class="field"><label>Paciente *</label><select class="inp" id="rp_pt"><option value="">— Selecciona —</option>${opts}</select></div>
+        <div class="field"><label>Tipo de informe</label><select class="inp" id="rp_type">${Object.entries(REP_TYPES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div>
+      </div>
+      <div class="field"><label>Indicaciones adicionales (opcional)</label><input class="inp" id="rp_hint" placeholder="p.ej. enfatizar progreso en fonema /r/"></div>
+      <button class="btn primary" id="rp_gen" style="margin-bottom:14px">✨ Generar con IA</button>
+      <span id="rp_st" class="muted" style="margin-left:8px;font-size:12px"></span>
+      <div class="field"><label>Contenido del informe</label><textarea class="inp" id="rp_content" style="min-height:280px" placeholder="El informe generado aparecerá aquí; puedes editarlo libremente antes de guardar."></textarea></div>`,
+    foot:`<button class="btn" data-close>Cancelar</button><button class="btn primary" data-save>Guardar informe</button>`,
+    onMount:(bg,close)=>{
+      $('#rp_gen',bg).onclick=async()=>{
+        const pid=$('#rp_pt',bg).value; if(!pid){toast('Selecciona un paciente','err');return;}
+        const p=Patients.get(pid); const type=$('#rp_type',bg).value;
+        const ses=Sessions.where(s=>s.patient_id===pid&&s.status==='realizada').sort((a,b)=>a.date.localeCompare(b.date));
+        const fbs=Feedback.where(f=>f.patient_id===pid);
+        $('#rp_st',bg).innerHTML='<span class="spin dark"></span> Analizando historial...';
+        try{
+          const sys='Eres un logopeda clínico colegiado. Redacta un informe clínico profesional completo en español, bien estructurado con apartados (Datos del paciente, Motivo, Antecedentes, Evolución, Objetivos trabajados, Resultados, Conclusiones y Recomendaciones). Tono formal y objetivo.';
+          const histo=ses.map(s=>`- ${s.date}: ${s.objective||'sesión'}. ${s.evolution||''}`).join('\n')||'Sin sesiones registradas.';
+          const resumenes=fbs.map(f=>f.summary).filter(Boolean).join('\n')||'';
+          const user=`Genera un INFORME DE ${REP_TYPES[type].toUpperCase()} para:\nPaciente: ${p.name}${p.birth?` (${age(p.birth)} años)`:''}\nColegio: ${p.school||'—'}\nDiagnóstico: ${p.diagnosis||'—'}\nObservaciones: ${p.notes||'—'}\n\nHistorial de sesiones:\n${histo}\n\nResúmenes clínicos:\n${resumenes}\n\nIndicaciones: ${$('#rp_hint',bg).value||'ninguna'}`;
+          const out=await AI.chat(sys,user);
+          $('#rp_content',bg).value=out; $('#rp_st',bg).textContent=AI.enabled()?'✓ Generado':'(borrador sin IA — conecta OpenAI)';
+        }catch(e){ $('#rp_st',bg).textContent=''; toast(e.message,'err'); }
+      };
+      $('[data-save]',bg).onclick=()=>{
+        const pid=$('#rp_pt',bg).value; if(!pid){toast('Selecciona un paciente','err');return;}
+        const content=$('#rp_content',bg).value.trim(); if(!content){toast('El informe está vacío','err');return;}
+        const type=$('#rp_type',bg).value; const p=Patients.get(pid);
+        Reports.insert({patient_id:pid,type,title:`Informe de ${REP_TYPES[type].toLowerCase()} · ${p.name}`,content});
+        toast('Informe guardado','ok'); close(); App.render();
+      };
+    }
+  });
+}
+
+function viewReport(id){
+  const r=Reports.get(id); const p=Patients.get(r.patient_id); const c=Config.get();
+  modal({ title:r.title||'Informe', wide:true,
+    body:`<div id="rep-print" style="font-size:13.5px;line-height:1.7">
+        <div style="border-bottom:2px solid var(--text);padding-bottom:10px;margin-bottom:16px">
+          <div style="font-weight:700;font-size:16px">${esc(c.clinic_name||'Gabinete de Logopedia')}</div>
+          <div class="muted" style="font-size:12px">${esc(c.pro_name||'')}${c.pro_lic?' · Col. '+esc(c.pro_lic):''}${c.phone?' · '+esc(c.phone):''}${c.email?' · '+esc(c.email):''}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px"><div><b>${REP_TYPES[r.type]||r.type}</b></div><div class="muted">${fmtDate(r.created_at)}</div></div>
+        <div style="white-space:pre-wrap">${esc(r.content)}</div>
+        <div style="margin-top:40px"><div style="border-top:1px solid var(--text);width:240px;padding-top:6px;font-size:12px">${esc(c.pro_name||'Fdo.')}${c.pro_lic?'<br>Col. '+esc(c.pro_lic):''}</div></div>
+      </div>`,
+    foot:`<button class="btn" data-close>Cerrar</button>
+      <button class="btn" data-email>✉ Enviar por email</button>
+      <button class="btn primary" data-pdf>⬇ Exportar PDF</button>`,
+    onMount:(bg,close)=>{
+      $('[data-pdf]',bg).onclick=()=>printNode($('#rep-print',bg).innerHTML, r.title);
+      $('[data-email]',bg).onclick=()=>{
+        const subj=encodeURIComponent(r.title||'Informe clínico');
+        const body=encodeURIComponent(r.content+'\n\n--\n'+(c.pro_name||'')+'\n'+(c.clinic_name||''));
+        window.location.href=`mailto:${p?.email||''}?subject=${subj}&body=${body}`;
+      };
+    }
+  });
+}
+
+/* ---------- FACTURACIÓN ---------- */
+function nextInvoiceNumber(){
+  const c=Config.get(); const prefix=c.inv_prefix||String(new Date().getFullYear()).slice(2);
+  const seed=parseInt(c.inv_seed)||1;   // nº mínimo de la siguiente factura (correlativo)
+  const nums=Invoices.all().map(i=>i.number).filter(n=>n&&String(n).startsWith(prefix)).map(n=>parseInt(String(n).slice(prefix.length))||0);
+  const maxN=nums.length?Math.max(...nums):0;
+  const next=Math.max(maxN+1, seed);
+  return prefix+String(next).padStart(3,'0');
+}
+function invLineTotal(l){ return (+l.price||0)*(+l.uds||0); }
+const RETENCION=0.15;   // IRPF cuando el cliente es empresa/profesional
+// Detecta si el pagador es empresa: CIF (empieza por letra ≠ X/Y/Z) o razón social con forma societaria
+function isCompany(p){
+  if(!p) return false;
+  const nif=(p.dni||'').trim().toUpperCase();
+  const tut=(p.tutor||'').toUpperCase();
+  if(/^[ABCDEFGHJNPQRSUVW]\d/.test(nif)) return true;
+  return /\b(S\.?L\.?U?|S\.?A\.?U?|S\.?C\.?P?|S\.?L\.?L|C\.?B\.?|S\.?COOP)\b/.test(tut);
+}
+// Nombre que aparece como cliente en la factura: el tutor/pagador (a veces empresa), no el paciente
+function clientName(p){ return (p && (p.tutor||p.name)) || ''; }
+function invTotal(inv){
+  if(inv.lines&&inv.lines.length) return inv.lines.reduce((s,l)=>s+invLineTotal(l),0);
+  return (+inv.qty||0)*(+inv.price||0);
+}
+function invoiceForm(inv={}){
+  const edit=!!inv.id;
+  const c=Config.get();
+  const pts=Patients.all().sort((a,b)=>a.name.localeCompare(b.name));
+  // Compatibilidad: facturas antiguas (qty/price) → una línea
+  let lines = inv.lines ? inv.lines.map(l=>({...l})) : (edit && inv.qty ? [{date:inv.date,desc:inv.concept||'Sesión logopedia',price:inv.price,uds:inv.qty}] : []);
+  let patientId = inv.patient_id||'';
+  modal({ title: edit?'Editar factura':'Nueva factura', wide:true,
+    body:`<div class="form-grid">
+        <div class="field"><label>Nº factura</label><input class="inp" id="i_num" value="${esc(inv.number||nextInvoiceNumber())}"></div>
+        <div class="field"><label>Fecha</label><input class="inp" id="i_date" type="date" value="${esc(inv.date||todayISO())}"></div>
+        <div class="field"><label>Paciente *</label><select class="inp" id="i_pt"><option value="">— Selecciona —</option>${pts.map(p=>`<option value="${p.id}" ${patientId===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select><div class="hint" id="i_clienthint"></div></div>
+        <div class="field"><label>Estado</label><select class="inp" id="i_status">${Object.entries(INV_STATUS).map(([k,v])=>`<option value="${k}" ${inv.status===k?'selected':''}>${v.label}</option>`).join('')}</select></div>
+      </div>
+      <div class="divider"></div>
+      <div class="sec-title" style="display:flex;align-items:center">Líneas de la factura
+        <span style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn sm" id="i_addses">＋ Añadir sesiones del paciente</button>
+          <button class="btn sm ghost" id="i_addman">＋ Línea manual</button>
+        </span></div>
+      <div id="i_lines"></div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px"><input type="checkbox" id="i_ret"> Cliente empresa/profesional → aplicar <b>retención IRPF 15%</b></label>
+      <div class="card" style="background:var(--bg-soft);margin-top:10px;font-size:13px">
+        <div style="display:flex;justify-content:space-between"><span>Honorarios</span><b id="i_hon">—</b></div>
+        <div id="i_retrow" style="display:none;justify-content:space-between;color:var(--red)"><span>Retención IRPF (15%)</span><b id="i_retamt">—</b></div>
+        <div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:6px;padding-top:6px;font-size:15px"><b>Total a pagar</b><b id="i_total">—</b></div>
+      </div>`,
+    foot:`<button class="btn" data-close>Cancelar</button><button class="btn primary" data-save>${edit?'Guardar':'Crear factura'}</button>`,
+    onMount:(bg,close)=>{
+      const linesEl=$('#i_lines',bg);
+      const recalc=()=>{ const hon=lines.reduce((s,l)=>s+invLineTotal(l),0); const ret=$('#i_ret',bg).checked?hon*RETENCION:0;
+        $('#i_hon',bg).textContent=eur(hon); $('#i_retrow',bg).style.display=$('#i_ret',bg).checked?'flex':'none';
+        $('#i_retamt',bg).textContent='-'+eur(ret); $('#i_total',bg).textContent=eur(hon-ret); };
+      const syncClient=()=>{ const p=Patients.get($('#i_pt',bg).value); const hint=$('#i_clienthint',bg);
+        if(p){ hint.innerHTML='Se factura a <b>'+esc(clientName(p))+'</b>'+(p.dni?' · '+esc(p.dni):'')+(isCompany(p)?' · <b style="color:var(--gold)">empresa</b>':''); if(!edit) $('#i_ret',bg).checked=isCompany(p); }
+        else hint.textContent=''; recalc(); };
+      const renderLines=()=>{
+        linesEl.innerHTML = lines.length?`<table class="table"><thead><tr><th>Fecha</th><th>Concepto</th><th>Precio</th><th>Uds</th><th>Total</th><th></th></tr></thead><tbody>${lines.map((l,n)=>`
+          <tr>
+            <td><input class="inp" style="padding:5px 7px" type="date" data-l="${n}" data-k="date" value="${esc(l.date||'')}"></td>
+            <td><input class="inp" style="padding:5px 7px" data-l="${n}" data-k="desc" value="${esc(l.desc||'Sesión logopedia')}"></td>
+            <td><input class="inp" style="padding:5px 7px;width:80px" type="number" step="0.01" data-l="${n}" data-k="price" value="${esc(l.price||'')}"></td>
+            <td><input class="inp" style="padding:5px 7px;width:60px" type="number" data-l="${n}" data-k="uds" value="${esc(l.uds||1)}"></td>
+            <td style="white-space:nowrap"><b>${eur(invLineTotal(l))}</b></td>
+            <td><button class="btn sm ghost danger" data-rm="${n}">×</button></td>
+          </tr>`).join('')}</tbody></table>`
+          :`<div class="empty" style="padding:24px"><span class="em">€</span>Añade sesiones del paciente o una línea manual</div>`;
+        recalc();
+        $$('[data-l]',linesEl).forEach(inp=>inp.oninput=()=>{ lines[+inp.dataset.l][inp.dataset.k]=inp.value; if(inp.dataset.k==='price'||inp.dataset.k==='uds')renderLines(); else recalc(); });
+        $$('[data-rm]',linesEl).forEach(b=>b.onclick=()=>{ lines.splice(+b.dataset.rm,1); renderLines(); });
+      };
+      renderLines();
+      if(edit) $('#i_ret',bg).checked=!!inv.retencion;
+      $('#i_ret',bg).onchange=recalc;
+      $('#i_pt',bg).onchange=syncClient;
+      syncClient();
+      $('#i_addman',bg).onclick=()=>{ const p=Patients.get($('#i_pt',bg).value); lines.push({date:todayISO(),desc:'Sesión logopedia',price:p?.fee||c.default_fee||'',uds:1}); renderLines(); };
+      $('#i_addses',bg).onclick=()=>{
+        const pid=$('#i_pt',bg).value; if(!pid){toast('Selecciona primero el paciente','err');return;}
+        const p=Patients.get(pid);
+        const billed=new Set(lines.map(l=>l.session_id).filter(Boolean));
+        const ses=Sessions.where(s=>s.patient_id===pid&&s.status==='realizada'&&!s.invoice_ref&&!billed.has(s.id)).sort((a,b)=>a.date.localeCompare(b.date));
+        if(!ses.length){toast('No hay sesiones realizadas pendientes de facturar','err');return;}
+        modal({ title:'Sesiones de '+p.name, body:`<div class="muted" style="margin-bottom:10px">Marca las sesiones a incluir:</div>
+          <div class="card" style="padding:6px;max-height:50vh;overflow:auto"><table class="table"><tbody>${ses.map(s=>`
+            <tr><td><input type="checkbox" data-s="${s.id}" checked></td><td>${fmtDate(s.date)}</td><td>${esc(s.objective||'Sesión logopedia')}</td><td>${s.amount?eur(s.amount):eur(p.fee||c.default_fee||0)}</td></tr>`).join('')}</tbody></table></div>`,
+          foot:`<button class="btn" data-close>Cancelar</button><button class="btn primary" data-add>Añadir seleccionadas</button>`,
+          onMount:(bg2,close2)=>{ $('[data-add]',bg2).onclick=()=>{
+            $$('[data-s]:checked',bg2).forEach(ch=>{ const sx=Sessions.get(ch.dataset.s); lines.push({session_id:sx.id,date:sx.date,desc:sx.objective||'Sesión logopedia',price:sx.amount||p.fee||c.default_fee||'',uds:1}); });
+            close2(); renderLines();
+          }; }
+        });
+      };
+      $('[data-save]',bg).onclick=()=>{
+        const pt=$('#i_pt',bg).value; if(!pt){toast('Selecciona cliente','err');return;}
+        if(!lines.length){toast('Añade al menos una línea','err');return;}
+        const hon=lines.reduce((s,l)=>s+invLineTotal(l),0);
+        const retencion=$('#i_ret',bg).checked;
+        const total=hon-(retencion?hon*RETENCION:0);
+        const number=$('#i_num',bg).value.trim();
+        const rec={number,date:$('#i_date',bg).value,patient_id:pt,lines,concept:'Sesiones de logopedia',
+          iva:c.iva!=null?c.iva:0,retencion,honorarios:hon,status:$('#i_status',bg).value,total};
+        let saved; if(edit){saved=Invoices.update(inv.id,rec);} else {saved=Invoices.insert(rec);}
+        // marcar sesiones facturadas
+        lines.forEach(l=>{ if(l.session_id) Sessions.update(l.session_id,{invoice_ref:number}); });
+        toast('Factura guardada','ok'); close(); App.render(); App.renderSidebar();
+      };
+    }
+  });
+}
+function viewInvoice(id){
+  const i=Invoices.get(id); const p=Patients.get(i.patient_id); const c=Config.get();
+  const lines=(i.lines&&i.lines.length)?i.lines:[{date:i.date,desc:i.concept||'Sesión logopedia',price:i.price,uds:i.qty||1}];
+  const honorarios=lines.reduce((s,l)=>s+invLineTotal(l),0);
+  const retencion=!!i.retencion; const retAmt=retencion?honorarios*RETENCION:0;
+  const total=i.total!=null?i.total:(honorarios-retAmt);
+  const exenta=(+i.iva||0)===0;
+  const ivaAmt=honorarios*(+i.iva||0)/100;
+  const NAVY='#2D4262';
+  modal({ title:'Factura '+i.number, wide:true,
+    body:`<div id="inv-print" style="font-size:13px;color:#222">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <img src="${LOGO_IMG}" alt="${esc(c.pro_name||'')}" style="height:74px">
+        <div style="text-align:right">
+          <div style="color:#666;font-size:12px">${fmtDate(i.date)}</div>
+          <div style="border:1px solid ${NAVY};border-radius:6px;padding:6px 14px;margin-top:6px">
+            <div style="font-size:11px;color:#666">Nº FACTURA</div><div style="font-weight:700;font-size:18px;color:${NAVY}">${esc(i.number)}</div></div>
+        </div>
+      </div>
+      <div style="border-bottom:2px solid ${NAVY};padding-bottom:10px;margin-bottom:14px;font-size:12px;color:#444">
+        <b style="color:${NAVY}">${esc(c.pro_name||'')}</b> · Nº Coleg. Logopedas ${esc(c.pro_lic||'—')}${c.pro_lic_psi?' · Psicólogos '+esc(c.pro_lic_psi):''}<br>
+        DNI/CIF: ${esc(c.nif||'—')} · ${esc(c.address||'')}
+      </div>
+      <div style="margin-bottom:16px;font-size:12.5px">
+        <div><b>Nombre y apellidos / Razón social:</b> ${esc(clientName(p)||i.client_name||'')}</div>
+        <div><b>NIF/CIF:</b> ${esc(p?.dni||'—')}</div>
+        <div><b>Dirección:</b> ${esc(p?.address||'—')}</div>
+      </div>
+      <div style="font-weight:700;background:${NAVY};color:#fff;padding:6px 10px;border-radius:5px;margin-bottom:6px">SESIONES DE LOGOPEDIA</div>
+      <table class="table"><thead><tr><th>Fecha</th><th>Sesión</th><th style="text-align:right">Precio</th><th style="text-align:center">Uds</th><th style="text-align:right">Total</th></tr></thead>
+        <tbody>${lines.map(l=>`<tr><td>${fmtDate(l.date)}</td><td>${esc(l.desc||'Sesión logopedia')}</td><td style="text-align:right">${eur(l.price)}</td><td style="text-align:center">${esc(l.uds||1)}</td><td style="text-align:right">${eur(invLineTotal(l))}</td></tr>`).join('')}</tbody></table>
+      <div style="margin-top:14px;margin-left:auto;width:280px;font-size:13px">
+        <div style="display:flex;justify-content:space-between"><span>Honorarios</span><b>${eur(honorarios)}</b></div>
+        ${!exenta?`<div style="display:flex;justify-content:space-between"><span>IVA (${i.iva}%)</span><b>${eur(ivaAmt)}</b></div>`:''}
+        ${retencion?`<div style="display:flex;justify-content:space-between;color:#b00"><span>Retención IRPF (15%)</span><b>-${eur(retAmt)}</b></div>`:''}
+        <div style="display:flex;justify-content:space-between;border-top:2px solid ${NAVY};margin-top:6px;padding-top:6px;font-size:16px;color:${NAVY}"><b>TOTAL A PAGAR</b><b>${eur(total)}</b></div>
+      </div>
+      ${c.ccc?`<div style="margin-top:22px;font-size:12px">Recibí la cantidad citada a través de transferencia bancaria al número de CCC: <b>${esc(c.ccc)}</b></div>`:''}
+      <div style="margin-top:22px;font-size:12px">Firmado:</div>
+      <img src="${SIGN_IMG}" alt="firma" style="height:62px;margin:2px 0 0 6px">
+      <div style="font-size:12px;color:#555">${esc(c.pro_name||'')}${c.pro_lic?' · Col. '+esc(c.pro_lic):''}</div>
+      ${exenta?`<div style="text-align:center;color:#666;font-size:11px;margin-top:20px;border-top:1px solid #ddd;padding-top:8px">${esc(c.iva_exencion||'Factura exenta de IVA según art. 20.1 de la Ley 37/1992')}${retencion?' · Operación sujeta a retención de IRPF del 15%':''}</div>`:''}
+    </div>`,
+    foot:`<button class="btn" data-close>Cerrar</button><button class="btn" data-email>✉ Email</button><button class="btn primary" data-pdf>⬇ Exportar PDF</button>`,
+    onMount:(bg)=>{
+      $('[data-pdf]',bg).onclick=()=>printNode($('#inv-print',bg).innerHTML,'Factura '+i.number);
+      $('[data-email]',bg).onclick=()=>{ window.location.href=`mailto:${p?.email||''}?subject=${encodeURIComponent('Factura '+i.number)}&body=${encodeURIComponent('Adjunto factura '+i.number+' por importe de '+eur(total)+'.')}`; };
+    }
+  });
+}
+
+/* ---------- Archivos ---------- */
+function fileUpload(patientId, after){
+  const inp=document.createElement('input'); inp.type='file';
+  inp.onchange=()=>{ const f=inp.files[0]; if(!f)return;
+    if(f.size>4*1024*1024){toast('Máx 4 MB por archivo (sin backend)','err');return;}
+    const r=new FileReader(); r.onload=()=>{ Files.insert({patient_id:patientId,name:f.name,kind:f.type||'archivo',data:r.result}); toast('Archivo añadido','ok'); after&&after(); };
+    r.readAsDataURL(f); };
+  inp.click();
+}
+
+/* ---------- Imprimir / PDF ---------- */
+function printNode(innerHTML,title){
+  const w=window.open('','_blank');
+  w.document.write(`<html><head><title>${esc(title||'Documento')}</title><meta charset="utf-8">
+    <style>body{font-family:Georgia,'Times New Roman',serif;max-width:760px;margin:40px auto;padding:0 24px;color:#222;line-height:1.7}
+    table{width:100%;border-collapse:collapse;margin:10px 0}th,td{padding:7px 9px;border-bottom:1px solid #ccc;text-align:left}
+    .muted{color:#666}b{color:#000}@media print{body{margin:0}}</style></head>
+    <body>${innerHTML}</body></html>`);
+  w.document.close(); setTimeout(()=>{w.print();},250);
+}
+
+/* ============================================================
+   DATOS DE EJEMPLO
+   ============================================================ */
+function seedDemo(){
+  const demo=[
+    {name:'Lucía Martín Pérez',birth:'2017-03-12',school:'CEIP Cervantes',grade:'2º Primaria',diagnosis:'Dislalia',tutor:'Ana Pérez',phone:'600111222',email:'ana.perez@email.com',fee:30,notes:'Dificultad con fonema /r/. Muy colaboradora.'},
+    {name:'Hugo Sánchez Ruiz',birth:'2015-09-01',school:'Colegio San José',grade:'4º Primaria',diagnosis:'TEL',tutor:'Marta Ruiz',phone:'600333444',email:'marta@email.com',fee:30,notes:'Trastorno específico del lenguaje.'},
+    {name:'Martina López Gil',birth:'2019-06-20',school:'EI Arcoíris',grade:'Infantil',diagnosis:'Retraso del habla',tutor:'Jorge López',phone:'600555666',fee:28,notes:''},
+  ];
+  demo.forEach(d=>{
+    const p=Patients.insert({...d,status:'activo'});
+    // sesiones pasadas
+    for(let k=4;k>=1;k--){ const dt=new Date(); dt.setDate(dt.getDate()-k*7);
+      Sessions.insert({patient_id:p.id,date:dt.toISOString().slice(0,10),time:'17:00',duration:45,status:'realizada',objective:'Trabajo de praxias y fonemas',evolution:'Buena participación, mejora progresiva.'}); }
+    // próxima
+    const nx=new Date(); nx.setDate(nx.getDate()+3);
+    Sessions.insert({patient_id:p.id,date:nx.toISOString().slice(0,10),time:'17:00',duration:45,status:'programada',objective:'Continuar plan de intervención'});
+  });
+  Reminders.insert({text:'Preparar informe escolar de Lucía',date:todayISO(),done:false});
+}
+
+/* ---------- Pantalla de acceso ---------- */
+function showLogin(err){
+  $('#sidebar').style.display='none';
+  $('#main').innerHTML=`<div style="max-width:330px;margin:11vh auto 0;text-align:center;padding:20px">
+    <img src="${LOGO_IMG}" alt="Beatriz Calabuig" style="max-width:250px;width:82%">
+    <div class="card" style="text-align:left;margin-top:22px">
+      <div class="field" style="margin-bottom:10px"><label>Contraseña de acceso</label>
+        <input class="inp" id="lg_pw" type="password" autocomplete="current-password" autofocus></div>
+      <div id="lg_err" style="color:var(--red);font-size:12px;margin-bottom:8px;min-height:14px">${err?esc(err):''}</div>
+      <button class="btn primary lg" id="lg_btn" style="width:100%">Entrar</button>
+    </div>
+    <div class="muted" style="font-size:11px;margin-top:16px">Logopedia · acceso privado</div>
+  </div>`;
+  const go=async()=>{
+    const pw=$('#lg_pw').value.trim(); if(!pw) return;
+    const b=$('#lg_btn'); b.disabled=true; b.textContent='Entrando…';
+    try{ await DB.login(pw); $('#sidebar').style.display=''; App.navigate('dashboard'); toast('Sesión iniciada','ok'); }
+    catch(e){ b.disabled=false; b.textContent='Entrar'; showLogin('Contraseña incorrecta'); }
+  };
+  $('#lg_btn').onclick=go;
+  $('#lg_pw').onkeydown=e=>{ if(e.key==='Enter') go(); };
+}
+
+/* ============================================================
+   ARRANQUE
+   ============================================================ */
+(async()=>{
+  $('#main').innerHTML='<div class="page" style="text-align:center;padding-top:120px;color:var(--text-soft)"><div class="spin dark" style="width:28px;height:28px;margin:0 auto 14px"></div>Conectando…</div>';
+  const st = await DB.boot();
+  if(st==='login'){ showLogin(); return; }
+  if(st==='offline'){ toast('Sin conexión — modo local','err'); }
+  App.navigate('dashboard');
+})();
+</script>
+</body>
+</html>
