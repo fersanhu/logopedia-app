@@ -475,7 +475,7 @@ const App = {
       if(it.id==='dashboard'&&todayReminders) badge=`<span class="badge">${todayReminders}</span>`;
       h+=`<button class="nav-item ${App.page===it.id?'active':''}" data-nav="${it.id}"><span class="ic">${it.ic}</span>${esc(it.label)}${badge}</button>`;
     }
-    h+=`<div class="sidebar-foot">v0.8 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
+    h+=`<div class="sidebar-foot">v0.9 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
     const sb=$('#sidebar'); sb.innerHTML=h;
     $$('[data-nav]',sb).forEach(b=>b.onclick=()=>App.navigate(b.dataset.nav));
   }
@@ -1521,8 +1521,12 @@ Pages.intake = (el)=>{
     <div class="hint" style="margin-top:10px">Enlace del formulario: <code>${esc(location.origin+location.pathname)}?intake=1</code></div>
   </div>`;
   draw();
-  $('[data-share]',el).onclick=()=>{ const url=location.origin+location.pathname+'?intake=1';
-    (navigator.clipboard?navigator.clipboard.writeText(url):Promise.reject()).then(()=>toast('Enlace copiado ✓','ok'),()=>prompt('Copia el enlace del formulario:',url)); };
+  $('[data-share]',el).onclick=async()=>{
+    const url=location.origin+location.pathname+'?intake=1';
+    const text='Hola 👋 Para daros de alta en el gabinete, rellenad esta breve ficha del paciente, por favor:\n'+url;
+    if(navigator.share){ try{ await navigator.share({title:'Ficha de alta · Logopedia',text,url}); return; }catch(e){ if(e.name==='AbortError') return; } }
+    try{ await navigator.clipboard.writeText(url); toast('Enlace copiado ✓','ok'); }catch{ prompt('Copia el enlace del formulario:',url); }
+  };
 };
 
 /* ============================================================
