@@ -100,6 +100,8 @@ a{color:var(--accent);text-decoration:none}
 .pill.purple{background:var(--purple-soft);color:var(--purple)}
 .pill.gray{background:var(--bg-hover);color:var(--text-soft)}
 .pill.gold{background:var(--gold-soft);color:var(--gold)}
+.pill-btn{background:none;border:none;cursor:pointer;padding:4px 2px;display:inline-flex;align-items:center;gap:4px;border-radius:6px}
+.pill-btn:hover{background:var(--bg-hover)}
 .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
 
 /* Avatar */
@@ -474,7 +476,7 @@ const App = {
       if(it.id==='dashboard'&&todayReminders) badge=`<span class="badge">${todayReminders}</span>`;
       h+=`<button class="nav-item ${App.page===it.id?'active':''}" data-nav="${it.id}"><span class="ic">${it.ic}</span>${esc(it.label)}${badge}</button>`;
     }
-    h+=`<div class="sidebar-foot">v1.0 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
+    h+=`<div class="sidebar-foot">v1.1 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
     const sb=$('#sidebar'); sb.innerHTML=h;
     $$('[data-nav]',sb).forEach(b=>b.onclick=()=>App.navigate(b.dataset.nav));
   }
@@ -504,6 +506,16 @@ const REP_TYPES={ seguimiento:'Seguimiento', alta:'Alta', evaluacion:'Evaluació
 const INV_STATUS={ pendiente:{label:'Pendiente',pill:'amber'}, enviado:{label:'Enviado',pill:'blue'}, pagado:{label:'Pagado',pill:'green'} };
 const PAT_STATUS={ activo:{label:'Activo',pill:'green'}, alta:{label:'Alta',pill:'blue'}, baja:{label:'Baja',pill:'gray'} };
 function patStatusPill(s){ const st=PAT_STATUS[s||'activo']||PAT_STATUS.activo; return `<span class="pill ${st.pill}">${st.pill==='green'?'<span class="dot"></span>':''}${st.label}</span>`; }
+// Selector rápido de estado (desde el listado, sin entrar en la ficha)
+function patientStatusPicker(id, after){
+  const p=Patients.get(id); if(!p) return; const cur=p.status||'activo';
+  modal({ title:'Estado · '+p.name,
+    body:`<div style="display:flex;flex-direction:column;gap:8px">${Object.keys(PAT_STATUS).map(k=>`
+      <button class="btn ${k===cur?'primary':''}" data-set="${k}" style="justify-content:flex-start;padding:11px 14px">${patStatusPill(k)}${k===cur?' <span style="opacity:.7;font-size:12px">· actual</span>':''}</button>`).join('')}</div>`,
+    foot:`<button class="btn" data-close>Cancelar</button>`,
+    onMount:(bg,close)=>{ $$('[data-set]',bg).forEach(b=>b.onclick=()=>{ if(b.dataset.set!==cur){ Patients.update(id,{status:b.dataset.set}); toast('Estado actualizado','ok'); } close(); after&&after(); App.renderSidebar(); }); }
+  });
+}
 
 /* ============================================================
    PÁGINAS
@@ -612,10 +624,11 @@ Pages.patients = (el)=>{
         <td>${p.diagnosis?`<span class="pill purple">${esc(p.diagnosis)}</span>`:'<span class="muted">—</span>'}</td>
         <td class="hide-sm">${nSes} <span class="muted">ses.</span></td>
         <td class="muted hide-sm">${last?fmtDate(last.date):'—'}</td>
-        <td>${patStatusPill(p.status)}</td>
+        <td><button class="pill-btn" data-status="${p.id}" title="Cambiar estado">${patStatusPill(p.status)} <span style="font-size:9px;opacity:.5">▾</span></button></td>
       </tr>`;
     }).join(''):`<tr><td colspan="6"><div class="empty"><span class="em">☺</span>${q?'Sin resultados':'No hay pacientes todavía'}</div></td></tr>`;
     $$('[data-open]',tb).forEach(r=>r.onclick=()=>App.navigate('patient',r.dataset.open));
+    $$('[data-status]',tb).forEach(b=>b.onclick=e=>{ e.stopPropagation(); patientStatusPicker(b.dataset.status, draw); });
   };
   el.innerHTML=`<div class="page">
     <div class="page-head"><div><h1>Pacientes</h1><div class="sub">${Patients.all().length} en total</div></div>
