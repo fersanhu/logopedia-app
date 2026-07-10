@@ -521,7 +521,7 @@ const App = {
       if(it.id==='dashboard'&&todayReminders) badge=`<span class="badge">${todayReminders}</span>`;
       h+=`<button class="nav-item ${App.page===it.id?'active':''}" data-nav="${it.id}"><span class="ic">${it.ic}</span>${esc(it.label)}${badge}</button>`;
     }
-    h+=`<div class="sidebar-foot">v1.3 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
+    h+=`<div class="sidebar-foot">v1.4 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
     const sb=$('#sidebar'); sb.innerHTML=h;
     $$('[data-nav]',sb).forEach(b=>b.onclick=()=>App.navigate(b.dataset.nav));
   }
@@ -725,6 +725,7 @@ Pages.patient = (el,id)=>{
             <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
               ${s.status==='programada'?`<button class="btn sm green" data-done="${s.id}">✓ Marcar realizada</button>`:''}
               <button class="btn sm" data-feedback="${s.id}">✨ Feedback / IA</button>
+              <button class="btn sm" data-send="${s.id}">📤 Enviar a familia</button>
               <button class="btn sm ghost" data-edit-ses="${s.id}">Editar</button>
               <button class="btn sm ghost danger" data-del-ses="${s.id}">Eliminar</button>
             </div>
@@ -733,6 +734,7 @@ Pages.patient = (el,id)=>{
       $('[data-add-ses]',c).onclick=()=>sessionForm({patient_id:id});
       $$('[data-done]',c).forEach(b=>b.onclick=()=>{Sessions.update(b.dataset.done,{status:'realizada'});toast('Sesión realizada','ok');drawTab();App.renderSidebar();});
       $$('[data-feedback]',c).forEach(b=>b.onclick=()=>feedbackModal(b.dataset.feedback,drawTab));
+      $$('[data-send]',c).forEach(b=>b.onclick=()=>sendToFamilyModal(b.dataset.send,drawTab));
       $$('[data-edit-ses]',c).forEach(b=>b.onclick=()=>sessionForm(Sessions.get(b.dataset.editSes)));
       $$('[data-del-ses]',c).forEach(b=>b.onclick=()=>{ if(confirm('¿Eliminar esta sesión?')){Sessions.remove(b.dataset.delSes);toast('Sesión eliminada');drawTab();} });
     }
@@ -1286,6 +1288,53 @@ function reminderForm(){
       Reminders.insert({text:t,date:$('#r_date',bg).value,patient_id:$('#r_pt',bg).value||null,done:false});
       toast('Recordatorio creado','ok'); close(); App.render();
     };}
+  });
+}
+
+/* ---------- ENVÍO DE FEEDBACK A LA FAMILIA (WhatsApp / Email) ---------- */
+function waNumber(phone){ let d=(phone||'').replace(/\D/g,''); if(!d) return ''; if(d.startsWith('00')) d=d.slice(2); if(d.length===9) d='34'+d; return d; }
+function defaultFamilyMsg(p,s,fb,cfg){
+  const first=(p.tutor||'').split(/[\/,]/)[0].trim();
+  return `Hola${first?' '+first:''}:\n\nHoy ${p.name||''} ha tenido su sesión de logopedia (${fmtDate(s.date)}).${s.objective?' Hemos trabajado: '+s.objective+'.':''}\n\n${fb.summary?fb.summary+'\n\n':''}Cualquier duda, aquí estoy.\nUn saludo,\n${cfg.pro_name||''}`;
+}
+function sendToFamilyModal(sessionId, after){
+  const s=Sessions.get(sessionId); if(!s) return;
+  const p=Patients.get(s.patient_id)||{}; const fb=Feedback.where(f=>f.session_id===sessionId)[0]||{}; const cfg=Config.get();
+  const wa=waNumber(p.phone);
+  modal({ title:'Enviar feedback a la familia', wide:true,
+    body:`<div class="muted" style="margin-bottom:10px;font-size:13px">Paciente: <b>${esc(p.name||'')}</b> · Tutor: ${esc(p.tutor||'—')} · ${fmtDate(s.date)}
+        ${wa?'':'<div style="color:var(--amber)">⚠ Sin teléfono válido para WhatsApp.</div>'}${p.email?'':'<div style="color:var(--amber)">⚠ Sin email en la ficha.</div>'}</div>
+      <div class="field"><label>Mensaje para la familia (revísalo antes de enviar)</label>
+        <textarea class="inp" id="sf_msg" style="min-height:170px">${esc(defaultFamilyMsg(p,s,fb,cfg))}</textarea>
+        <button class="btn sm" id="sf_ai" style="margin-top:8px">✨ Redactar con IA</button>
+        <span id="sf_aist" class="muted" style="font-size:12px;margin-left:8px"></span></div>
+      <div class="ai-box" style="font-size:12px">Contiene información de un menor: mantén el mensaje breve. Nada se envía hasta que pulses un botón de envío.</div>`,
+    foot:`<button class="btn" data-close>Cancelar</button>
+      ${wa?`<button class="btn green" data-wa>🟢 WhatsApp</button>`:''}
+      ${p.email?`<button class="btn primary" data-email>✉ Email</button>`:''}`,
+    onMount:(bg,close)=>{
+      const getMsg=()=>$('#sf_msg',bg).value.trim();
+      $('#sf_ai',bg).onclick=async()=>{
+        $('#sf_aist',bg).innerHTML='<span class="spin dark"></span> Redactando...';
+        try{
+          const sys='Eres logopeda. Redacta un mensaje BREVE (5-6 líneas máx.), cercano y claro para la familia de un/a menor tras su sesión de logopedia, en español. Evita datos sensibles innecesarios. Saludo con el nombre del tutor si se da, qué se ha trabajado y una pauta para casa si procede. Firma con el nombre del profesional.';
+          const user=`Tutor: ${p.tutor||''}. Paciente: ${p.name||''}. Fecha: ${s.date}. Objetivo: ${s.objective||'—'}. Notas/resumen: ${fb.summary||fb.text||s.evolution||'sin notas'}. Profesional: ${cfg.pro_name||''}.`;
+          const out=await AI.chat(sys,user); $('#sf_msg',bg).value=out; $('#sf_aist',bg).textContent=AI.enabled()?'✓ Redactado':'(borrador sin IA)';
+        }catch(e){ $('#sf_aist',bg).textContent=''; toast(e.message,'err'); }
+      };
+      const waBtn=$('[data-wa]',bg); if(waBtn) waBtn.onclick=()=>{ const m=getMsg(); if(!m){toast('El mensaje está vacío','err');return;} window.open('https://wa.me/'+wa+'?text='+encodeURIComponent(m),'_blank'); toast('Abriendo WhatsApp…','ok'); close(); after&&after(); };
+      const emBtn=$('[data-email]',bg); if(emBtn) emBtn.onclick=async()=>{ const m=getMsg(); if(!m){toast('El mensaje está vacío','err');return;}
+        const subject='Sesión de logopedia · '+(p.name||''); emBtn.disabled=true; emBtn.textContent='Enviando…';
+        try{
+          if(!sb||!sb.functions) throw new Error('no-fn');
+          const {error}=await sb.functions.invoke('send-email',{body:{to:p.email,subject,text:m}}); if(error) throw error;
+          toast('Email enviado ✓','ok'); close(); after&&after();
+        }catch(e){ // aún sin Edge Function → abrir el correo con todo relleno
+          window.location.href='mailto:'+encodeURIComponent(p.email)+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(m);
+          close(); after&&after();
+        }
+      };
+    }
   });
 }
 
