@@ -276,6 +276,20 @@ const $ = (s,el=document)=>el.querySelector(s);
 const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
 const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Render de markdown ligero (texto IA) a HTML seguro: escapa primero y luego da formato
+function mdLite(s){ if(!s) return '';
+  const b=x=>x.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<i>$2</i>');
+  let out=''; for(const ln of esc(s).split(/\r?\n/)){ const l=ln.trim();
+    if(!l){ out+='<div style="height:6px"></div>'; continue; }
+    if(/^-{3,}$/.test(l)){ out+='<hr style="border:none;border-top:1px solid var(--line);margin:9px 0">'; continue; }
+    const hm=l.match(/^(#{1,6})\s+(.*)$/); if(hm){ out+='<div style="font-weight:700;margin:9px 0 2px">'+b(hm[2])+'</div>'; continue; }
+    if(/^[-*•]\s+/.test(l)){ out+='<div style="padding-left:14px;margin:1px 0">• '+b(l.replace(/^[-*•]\s+/,''))+'</div>'; continue; }
+    const nm=l.match(/^(\d+)[.)]\s+(.*)$/); if(nm){ out+='<div style="padding-left:16px;margin:1px 0">'+nm[1]+'. '+b(nm[2])+'</div>'; continue; }
+    out+='<div style="margin:1px 0">'+b(l)+'</div>';
+  } return out;
+}
+// Texto plano para vistas previas (quita markdown y HTML)
+function mdPreview(s){ return (s||'').replace(/<[^>]+>/g,' ').replace(/[#*_`>]/g,'').replace(/-{3,}/g,' ').replace(/\s+/g,' ').trim(); }
 const todayISO = ()=> new Date().toISOString().slice(0,10);
 const nowISO = ()=> new Date().toISOString();
 function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso); if(isNaN(d)) return iso; return d.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'}); }
@@ -521,7 +535,7 @@ const App = {
       if(it.id==='dashboard'&&todayReminders) badge=`<span class="badge">${todayReminders}</span>`;
       h+=`<button class="nav-item ${App.page===it.id?'active':''}" data-nav="${it.id}"><span class="ic">${it.ic}</span>${esc(it.label)}${badge}</button>`;
     }
-    h+=`<div class="sidebar-foot">v1.6 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
+    h+=`<div class="sidebar-foot">v1.7 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
     const sb=$('#sidebar'); sb.innerHTML=h;
     $$('[data-nav]',sb).forEach(b=>b.onclick=()=>App.navigate(b.dataset.nav));
   }
@@ -715,12 +729,12 @@ Pages.patient = (el,id)=>{
           <div class="tl-date">${fmtDate(s.date)} ${s.time?'· '+esc(s.time):''} <span class="pill ${st.pill}" style="margin-left:6px">${st.label}</span></div>
           <div class="card" style="margin-top:6px">
             ${s.objective?`<div><b>Objetivo:</b> ${esc(s.objective)}</div>`:''}
-            ${s.evolution?`<div style="margin-top:4px">${esc(s.evolution)}</div>`:''}
+            ${s.evolution?`<div style="margin-top:4px;font-size:13px">${mdLite(s.evolution)}</div>`:''}
             ${s.duration?`<div class="muted" style="font-size:12px;margin-top:4px">Duración: ${esc(s.duration)} min</div>`:''}
             ${fbs.map(f=>`<div class="ai-box" style="margin-top:8px">
-              ${f.text?`<div style="font-size:13px"><b>Notas:</b> ${esc(f.text)}</div>`:''}
-              ${f.transcription?`<div style="font-size:13px;margin-top:4px"><b>Transcripción:</b> ${esc(f.transcription)}</div>`:''}
-              ${f.summary?`<div style="font-size:13px;margin-top:6px"><b>✨ Resumen IA:</b> ${esc(f.summary)}</div>`:''}
+              ${f.text?`<div style="font-size:13px"><b>Notas:</b><div style="margin-top:2px">${mdLite(f.text)}</div></div>`:''}
+              ${f.transcription?`<div style="font-size:13px;margin-top:6px"><b>Transcripción:</b> ${esc(f.transcription)}</div>`:''}
+              ${f.summary?`<div style="font-size:13px;margin-top:6px"><b>✨ Resumen IA:</b><div style="margin-top:2px">${mdLite(f.summary)}</div></div>`:''}
             </div>`).join('')}
             <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
               ${s.status==='programada'?`<button class="btn sm green" data-done="${s.id}">✓ Marcar realizada</button>`:''}
@@ -746,7 +760,7 @@ Pages.patient = (el,id)=>{
           <span class="pill blue">${REP_TYPES[r.type]||r.type}</span>
           <b>${esc(r.title||'Informe')}</b>
           <span class="muted" style="margin-left:auto;font-size:12px">${fmtDate(r.created_at)}</span></div>
-          <div class="muted" style="font-size:13px;margin-top:8px;white-space:pre-wrap;max-height:80px;overflow:hidden">${esc((r.content||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,260))}…</div>
+          <div class="muted" style="font-size:13px;margin-top:8px;max-height:80px;overflow:hidden">${esc(mdPreview(r.content).slice(0,260))}…</div>
           <div style="margin-top:10px;display:flex;gap:6px"><button class="btn sm" data-view-rep="${r.id}">Ver / Exportar</button>
           <button class="btn sm ghost danger" data-del-rep="${r.id}">Eliminar</button></div>
         </div>`).join('')}</div>`
@@ -1448,7 +1462,7 @@ function viewReport(id){
           <div class="muted" style="font-size:12px">${esc(c.pro_name||'')}${c.pro_lic?' · Col. '+esc(c.pro_lic):''}${c.phone?' · '+esc(c.phone):''}${c.email?' · '+esc(c.email):''}</div>
         </div>
         <div style="display:flex;justify-content:space-between;margin-bottom:12px"><div><b>${REP_TYPES[r.type]||r.type}</b></div><div class="muted">${fmtDate(r.created_at)}</div></div>
-        ${r.type==='anamnesis'?r.content:'<div style="white-space:pre-wrap">'+esc(r.content)+'</div>'}
+        ${r.type==='anamnesis'?r.content:'<div style="line-height:1.55">'+mdLite(r.content)+'</div>'}
         <div style="margin-top:40px"><div style="border-top:1px solid var(--text);width:240px;padding-top:6px;font-size:12px">${esc(c.pro_name||'Fdo.')}${c.pro_lic?'<br>Col. '+esc(c.pro_lic):''}</div></div>
       </div>`,
     foot:`<button class="btn" data-close>Cerrar</button>
