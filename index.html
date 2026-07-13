@@ -521,7 +521,7 @@ const App = {
       if(it.id==='dashboard'&&todayReminders) badge=`<span class="badge">${todayReminders}</span>`;
       h+=`<button class="nav-item ${App.page===it.id?'active':''}" data-nav="${it.id}"><span class="ic">${it.ic}</span>${esc(it.label)}${badge}</button>`;
     }
-    h+=`<div class="sidebar-foot">v1.5 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
+    h+=`<div class="sidebar-foot">v1.6 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
     const sb=$('#sidebar'); sb.innerHTML=h;
     $$('[data-nav]',sb).forEach(b=>b.onclick=()=>App.navigate(b.dataset.nav));
   }
@@ -746,7 +746,7 @@ Pages.patient = (el,id)=>{
           <span class="pill blue">${REP_TYPES[r.type]||r.type}</span>
           <b>${esc(r.title||'Informe')}</b>
           <span class="muted" style="margin-left:auto;font-size:12px">${fmtDate(r.created_at)}</span></div>
-          <div class="muted" style="font-size:13px;margin-top:8px;white-space:pre-wrap;max-height:80px;overflow:hidden">${esc((r.content||'').slice(0,260))}…</div>
+          <div class="muted" style="font-size:13px;margin-top:8px;white-space:pre-wrap;max-height:80px;overflow:hidden">${esc((r.content||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,260))}…</div>
           <div style="margin-top:10px;display:flex;gap:6px"><button class="btn sm" data-view-rep="${r.id}">Ver / Exportar</button>
           <button class="btn sm ghost danger" data-del-rep="${r.id}">Eliminar</button></div>
         </div>`).join('')}</div>`
