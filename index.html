@@ -326,7 +326,7 @@ const DB = (()=>{
   load();
   // '' → null para columnas numéricas/fecha de Postgres
   const clean = r => { const o={}; for(const k in r) o[k]= (r[k]==='' ? null : r[k]); return o; };
-  function push(name,rec){ if(remote&&sb) sb.from(name).upsert(clean(rec),{onConflict:'id'}).then(({error})=>{ if(error) toast('Sync '+name+': '+error.message,'err'); }); }
+  function push(name,rec){ if(remote&&sb){ const r=clean(rec); if(name==='files') delete r.updated_at; sb.from(name).upsert(r,{onConflict:'id'}).then(({error})=>{ if(error) toast('Sync '+name+': '+error.message,'err'); }); } }
   function del(name,id){ if(remote&&sb) sb.from(name).delete().eq('id',id).then(({error})=>{ if(error) toast('Sync '+name+': '+error.message,'err'); }); }
   function store(name){
     return {
@@ -535,7 +535,7 @@ const App = {
       if(it.id==='dashboard'&&todayReminders) badge=`<span class="badge">${todayReminders}</span>`;
       h+=`<button class="nav-item ${App.page===it.id?'active':''}" data-nav="${it.id}"><span class="ic">${it.ic}</span>${esc(it.label)}${badge}</button>`;
     }
-    h+=`<div class="sidebar-foot">v1.7 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
+    h+=`<div class="sidebar-foot">v1.8 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
     const sb=$('#sidebar'); sb.innerHTML=h;
     $$('[data-nav]',sb).forEach(b=>b.onclick=()=>App.navigate(b.dataset.nav));
   }
