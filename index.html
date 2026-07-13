@@ -535,7 +535,7 @@ const App = {
       if(it.id==='dashboard'&&todayReminders) badge=`<span class="badge">${todayReminders}</span>`;
       h+=`<button class="nav-item ${App.page===it.id?'active':''}" data-nav="${it.id}"><span class="ic">${it.ic}</span>${esc(it.label)}${badge}</button>`;
     }
-    h+=`<div class="sidebar-foot">v1.8 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
+    h+=`<div class="sidebar-foot">v1.9 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
     const sb=$('#sidebar'); sb.innerHTML=h;
     $$('[data-nav]',sb).forEach(b=>b.onclick=()=>App.navigate(b.dataset.nav));
   }
@@ -620,7 +620,8 @@ Pages.dashboard = (el)=>{
             <tr class="row-click" data-open="${s.patient_id}">
               <td><span class="av" style="background:${colorFor(p?.name)}">${initials(p?.name)}</span></td>
               <td><b>${esc(p?.name||'—')}</b><div class="muted" style="font-size:12px">${esc(s.objective||'Sesión')}</div></td>
-              <td style="text-align:right"><div>${fmtDate(s.date)}</div><div class="muted" style="font-size:12px">${relDays(s.date)} · ${esc(s.time||'')}</div></td>
+              <td style="text-align:right;white-space:nowrap"><div>${fmtDate(s.date)}</div><div class="muted" style="font-size:12px">${relDays(s.date)} · ${esc(s.time||'')}</div></td>
+              <td style="text-align:right"><button class="btn sm" data-remind="${s.id}" title="Recordar por WhatsApp">🔔</button></td>
             </tr>`;}).join('')}</tbody></table>`
             :`<div class="empty"><span class="em">📅</span>No hay sesiones programadas</div>`}
         </div>
@@ -659,6 +660,7 @@ Pages.dashboard = (el)=>{
   $('[data-go-config]',el)&&($('[data-go-config]',el).onclick=()=>App.navigate('config'));
   $('[data-add-rem]',el).onclick=()=>reminderForm();
   $$('[data-open]',el).forEach(r=>r.onclick=()=>App.navigate('patient',r.dataset.open));
+  $$('[data-remind]',el).forEach(b=>b.onclick=e=>{e.stopPropagation();sessionReminderModal(b.dataset.remind);});
   $$('[data-rem-done]',el).forEach(c=>c.onchange=()=>{ Reminders.update(c.dataset.remDone,{done:true}); toast('Recordatorio completado','ok'); App.render(); });
 };
 
@@ -737,7 +739,7 @@ Pages.patient = (el,id)=>{
               ${f.summary?`<div style="font-size:13px;margin-top:6px"><b>✨ Resumen IA:</b><div style="margin-top:2px">${mdLite(f.summary)}</div></div>`:''}
             </div>`).join('')}
             <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-              ${s.status==='programada'?`<button class="btn sm green" data-done="${s.id}">✓ Marcar realizada</button>`:''}
+              ${s.status==='programada'?`<button class="btn sm green" data-done="${s.id}">✓ Marcar realizada</button><button class="btn sm" data-remind="${s.id}">🔔 Recordar</button>`:''}
               <button class="btn sm" data-feedback="${s.id}">✨ Feedback / IA</button>
               <button class="btn sm" data-send="${s.id}">📤 Enviar a familia</button>
               <button class="btn sm ghost" data-edit-ses="${s.id}">Editar</button>
@@ -749,6 +751,7 @@ Pages.patient = (el,id)=>{
       $$('[data-done]',c).forEach(b=>b.onclick=()=>{Sessions.update(b.dataset.done,{status:'realizada'});toast('Sesión realizada','ok');drawTab();App.renderSidebar();});
       $$('[data-feedback]',c).forEach(b=>b.onclick=()=>feedbackModal(b.dataset.feedback,drawTab));
       $$('[data-send]',c).forEach(b=>b.onclick=()=>sendToFamilyModal(b.dataset.send,drawTab));
+      $$('[data-remind]',c).forEach(b=>b.onclick=()=>sessionReminderModal(b.dataset.remind));
       $$('[data-edit-ses]',c).forEach(b=>b.onclick=()=>sessionForm(Sessions.get(b.dataset.editSes)));
       $$('[data-del-ses]',c).forEach(b=>b.onclick=()=>{ if(confirm('¿Eliminar esta sesión?')){Sessions.remove(b.dataset.delSes);toast('Sesión eliminada');drawTab();} });
     }
@@ -789,7 +792,7 @@ Pages.patient = (el,id)=>{
         <dt>Curso</dt><dd>${esc(p.grade||'—')}</dd>
         <dt>Diagnóstico</dt><dd>${esc(p.diagnosis||'—')}</dd>
         <dt>Tutor/a legal</dt><dd>${esc(p.tutor||'—')}</dd>
-        <dt>Teléfono</dt><dd>${p.phone?`<a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>`:'—'}</dd>
+        <dt>Teléfono(s)</dt><dd>${phoneList(p).length?phoneList(p).map(ph=>`<a href="tel:${esc(ph.num)}">${esc(ph.num)}</a>${ph.label?' <span class="muted">('+esc(ph.label)+')</span>':''}`).join('<br>'):'—'}</dd>
         <dt>Email</dt><dd>${p.email?`<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>`:'—'}</dd>
         <dt>DNI/NIF</dt><dd>${esc(p.dni||'—')}</dd>
         <dt>Dirección</dt><dd>${esc(p.address||'—')}</dd>
@@ -850,7 +853,7 @@ Pages.calendar = (el)=>{
     $('#cal-grid').innerHTML=cells;
     $('#cal-title').textContent=cur.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
     $$('.cal-cell',el).forEach(c=>{ c.onclick=()=>{ const d=c.dataset.date; sessionForm({date:d}); }; });
-    $$('.cal-ev',el).forEach(ev=>ev.onclick=e=>{ e.stopPropagation(); App.navigate('patient',ev.dataset.pt); });
+    $$('.cal-ev',el).forEach(ev=>ev.onclick=e=>{ e.stopPropagation(); if(ev.dataset.st==='programada') sessionReminderModal(ev.dataset.sid); else App.navigate('patient',ev.dataset.pt); });
   };
   function cell(d,out,byDate){
     const iso=d.toISOString().slice(0,10);
@@ -859,7 +862,7 @@ Pages.calendar = (el)=>{
     return `<div class="cal-cell ${out?'out':''} ${isToday?'today':''}" data-date="${iso}">
       <div class="cn">${d.getDate()}</div>
       ${evs.slice(0,4).map(s=>{const p=Patients.get(s.patient_id);const cls=s.status==='realizada'?'done':s.status==='cancelada'?'cancel':'';
-        return `<div class="cal-ev ${cls}" data-pt="${s.patient_id}" title="${esc(p?.name||'')}">${s.time?esc(s.time)+' ':''}${esc(p?.name||'Sesión')}</div>`;}).join('')}
+        return `<div class="cal-ev ${cls}" data-pt="${s.patient_id}" data-sid="${s.id}" data-st="${s.status}" title="${esc(p?.name||'')}">${s.time?esc(s.time)+' ':''}${esc(p?.name||'Sesión')}</div>`;}).join('')}
       ${evs.length>4?`<div class="muted" style="font-size:10px;padding:2px 5px">+${evs.length-4} más</div>`:''}
     </div>`;
   }
@@ -1178,7 +1181,7 @@ function patientForm(p={}, opts={}){
       <div class="field"><label>Colegio / Centro</label><input class="inp" id="f_school" value="${esc(p.school||'')}"></div>
       <div class="field"><label>Curso</label><input class="inp" id="f_grade" value="${esc(p.grade||'')}"></div>
       <div class="field"><label>Tutor/a legal</label><input class="inp" id="f_tutor" value="${esc(p.tutor||'')}"></div>
-      <div class="field"><label>Teléfono</label><input class="inp" id="f_phone" value="${esc(p.phone||'')}"></div>
+      <div class="field full"><label>Teléfonos</label><div id="f_phones"></div><button type="button" class="btn sm ghost" id="f_addphone" style="margin-top:4px">＋ Añadir teléfono</button></div>
       <div class="field"><label>Email</label><input class="inp" id="f_email" type="email" value="${esc(p.email||'')}"></div>
       <div class="field"><label>DNI/NIF (facturación)</label><input class="inp" id="f_dni" value="${esc(p.dni||'')}"></div>
       <div class="field"><label>Tarifa por sesión (€)</label><input class="inp" id="f_fee" type="number" value="${esc(p.fee||Config.get().default_fee||'')}"></div>
@@ -1188,10 +1191,16 @@ function patientForm(p={}, opts={}){
       <div class="field full"><label>Observaciones</label><textarea class="inp" id="f_notes">${esc(p.notes||'')}</textarea></div>
     </div>`,
     foot:`<button class="btn" data-close>Cancelar</button><button class="btn primary" data-save>${edit?'Guardar':'Crear paciente'}</button>`,
-    onMount:(bg,close)=>{ $('[data-save]',bg).onclick=()=>{
+    onMount:(bg,close)=>{
+      let phones=phoneList(p); if(!phones.length) phones=[{label:'',num:''}];
+      const renderPhones=()=>{ $('#f_phones',bg).innerHTML=phones.map((ph,i)=>'<div style="display:flex;gap:6px;margin-bottom:6px"><input class="inp" placeholder="Teléfono" data-ph="'+i+'" data-k="num" value="'+esc(ph.num)+'"><input class="inp" style="max-width:130px" placeholder="Etiqueta" data-ph="'+i+'" data-k="label" value="'+esc(ph.label)+'"><button type="button" class="btn sm ghost danger" data-rmph="'+i+'">×</button></div>').join('');
+        $$('[data-ph]',bg).forEach(inp=>inp.oninput=()=>{ phones[+inp.dataset.ph][inp.dataset.k]=inp.value; });
+        $$('[data-rmph]',bg).forEach(b=>b.onclick=()=>{ phones.splice(+b.dataset.rmph,1); if(!phones.length)phones=[{label:'',num:''}]; renderPhones(); }); };
+      renderPhones(); $('#f_addphone',bg).onclick=()=>{ phones.push({label:'',num:''}); renderPhones(); };
+      $('[data-save]',bg).onclick=()=>{
       const name=$('#f_name',bg).value.trim(); if(!name){toast('El nombre es obligatorio','err');return;}
       const rec={name,birth:$('#f_birth',bg).value,diagnosis:$('#f_diag',bg).value.trim(),school:$('#f_school',bg).value.trim(),
-        grade:$('#f_grade',bg).value.trim(),tutor:$('#f_tutor',bg).value.trim(),phone:$('#f_phone',bg).value.trim(),
+        grade:$('#f_grade',bg).value.trim(),tutor:$('#f_tutor',bg).value.trim(),phone:phonesToStr(phones),
         email:$('#f_email',bg).value.trim(),dni:$('#f_dni',bg).value.trim(),fee:$('#f_fee',bg).value,
         status:$('#f_status',bg).value,address:$('#f_addr',bg).value.trim(),notes:$('#f_notes',bg).value.trim()};
       const calVal=$('#f_cal',bg).value;
@@ -1307,6 +1316,27 @@ function reminderForm(){
 
 /* ---------- ENVÍO DE FEEDBACK A LA FAMILIA (WhatsApp / Email) ---------- */
 function waNumber(phone){ let d=(phone||'').replace(/\D/g,''); if(!d) return ''; if(d.startsWith('00')) d=d.slice(2); if(d.length===9) d='34'+d; return d; }
+// Varios teléfonos por paciente: se guardan en el campo phone como "Etiqueta: número / número / ..."
+function phoneList(p){ return String((p&&p.phone)||'').split(/\s*\/\s*/).map(s=>s.trim()).filter(Boolean).map(s=>{ const m=s.match(/^([^:：]{1,24})[:：]\s*(.+)$/); return (m&&/\d/.test(m[2]))?{label:m[1].trim(),num:m[2].trim()}:{label:'',num:s}; }); }
+function phonesToStr(arr){ return (arr||[]).filter(x=>x.num&&x.num.trim()).map(x=>(x.label&&x.label.trim())?(x.label.trim()+': '+x.num.trim()):x.num.trim()).join(' / '); }
+function waButtons(p){ return phoneList(p).map(x=>({label:x.label,num:x.num,wa:waNumber(x.num)})).filter(x=>x.wa); }
+// Recordatorio de sesión por WhatsApp (como el envío a familia)
+function reminderMsg(p,s,cfg){ const first=(p.tutor||'').split(/[\/,]/)[0].trim(); const h=s.time?(' a las '+s.time):''; return `Hola${first?' '+first:''}:\n\nTe recordamos la próxima sesión de logopedia de ${p.name||''}: ${fmtDate(s.date)}${h}.\n\n¡Nos vemos! Un saludo,\n${cfg.pro_name||cfg.clinic_name||''}`; }
+function sessionReminderModal(sessionId, after){
+  const s=Sessions.get(sessionId); if(!s) return;
+  const p=Patients.get(s.patient_id)||{}; const cfg=Config.get(); const phones=waButtons(p);
+  modal({ title:'🔔 Recordatorio de sesión', wide:true,
+    body:`<div class="muted" style="margin-bottom:10px;font-size:13px">Paciente: <b>${esc(p.name||'')}</b> · ${fmtDate(s.date)}${s.time?' · '+esc(s.time):''}${phones.length?'':'<div style="color:var(--amber)">⚠ Sin teléfono válido para WhatsApp.</div>'}</div>
+      <div class="field"><label>Mensaje (revísalo antes de enviar)</label><textarea class="inp" id="rm_msg" style="min-height:140px">${esc(reminderMsg(p,s,cfg))}</textarea></div>
+      <div class="ai-box" style="font-size:12px">Elige el teléfono al que enviarlo. Nada se envía hasta que pulses.</div>`,
+    foot:`<button class="btn" data-close>Cancelar</button>${phones.map(ph=>'<button class="btn green" data-wa="'+ph.wa+'">🟢 '+esc(ph.label||ph.num)+'</button>').join('')}${p.email?'<button class="btn" data-email>✉ Email</button>':''}`,
+    onMount:(bg,close)=>{
+      const getMsg=()=>$('#rm_msg',bg).value.trim();
+      $$('[data-wa]',bg).forEach(b=>b.onclick=()=>{ const m=getMsg(); if(!m)return; window.open('https://wa.me/'+b.dataset.wa+'?text='+encodeURIComponent(m),'_blank'); toast('Abriendo WhatsApp…','ok'); close(); after&&after(); });
+      const em=$('[data-email]',bg); if(em) em.onclick=()=>{ const m=getMsg(); if(!m)return; window.location.href='mailto:'+encodeURIComponent(p.email)+'?subject='+encodeURIComponent('Recordatorio de sesión · '+(p.name||''))+'&body='+encodeURIComponent(m); close(); after&&after(); };
+    }
+  });
+}
 function defaultFamilyMsg(p,s,fb,cfg){
   const first=(p.tutor||'').split(/[\/,]/)[0].trim();
   return `Hola${first?' '+first:''}:\n\nHoy ${p.name||''} ha tenido su sesión de logopedia (${fmtDate(s.date)}).${s.objective?' Hemos trabajado: '+s.objective+'.':''}\n\n${fb.summary?fb.summary+'\n\n':''}Cualquier duda, aquí estoy.\nUn saludo,\n${cfg.pro_name||''}`;
@@ -1314,17 +1344,17 @@ function defaultFamilyMsg(p,s,fb,cfg){
 function sendToFamilyModal(sessionId, after){
   const s=Sessions.get(sessionId); if(!s) return;
   const p=Patients.get(s.patient_id)||{}; const fb=Feedback.where(f=>f.session_id===sessionId)[0]||{}; const cfg=Config.get();
-  const wa=waNumber(p.phone);
+  const phones=waButtons(p);
   modal({ title:'Enviar feedback a la familia', wide:true,
     body:`<div class="muted" style="margin-bottom:10px;font-size:13px">Paciente: <b>${esc(p.name||'')}</b> · Tutor: ${esc(p.tutor||'—')} · ${fmtDate(s.date)}
-        ${wa?'':'<div style="color:var(--amber)">⚠ Sin teléfono válido para WhatsApp.</div>'}${p.email?'':'<div style="color:var(--amber)">⚠ Sin email en la ficha.</div>'}</div>
+        ${phones.length?'':'<div style="color:var(--amber)">⚠ Sin teléfono válido para WhatsApp.</div>'}${p.email?'':'<div style="color:var(--amber)">⚠ Sin email en la ficha.</div>'}</div>
       <div class="field"><label>Mensaje para la familia (revísalo antes de enviar)</label>
         <textarea class="inp" id="sf_msg" style="min-height:170px">${esc(defaultFamilyMsg(p,s,fb,cfg))}</textarea>
         <button class="btn sm" id="sf_ai" style="margin-top:8px">✨ Redactar con IA</button>
         <span id="sf_aist" class="muted" style="font-size:12px;margin-left:8px"></span></div>
       <div class="ai-box" style="font-size:12px">Contiene información de un menor: mantén el mensaje breve. Nada se envía hasta que pulses un botón de envío.</div>`,
     foot:`<button class="btn" data-close>Cancelar</button>
-      ${wa?`<button class="btn green" data-wa>🟢 WhatsApp</button>`:''}
+      ${phones.map(ph=>'<button class="btn green" data-wa="'+ph.wa+'">🟢 WhatsApp'+(ph.label?' '+esc(ph.label):'')+'</button>').join('')}
       ${p.email?`<button class="btn primary" data-email>✉ Email</button>`:''}`,
     onMount:(bg,close)=>{
       const getMsg=()=>$('#sf_msg',bg).value.trim();
@@ -1336,7 +1366,7 @@ function sendToFamilyModal(sessionId, after){
           const out=await AI.chat(sys,user); $('#sf_msg',bg).value=out; $('#sf_aist',bg).textContent=AI.enabled()?'✓ Redactado':'(borrador sin IA)';
         }catch(e){ $('#sf_aist',bg).textContent=''; toast(e.message,'err'); }
       };
-      const waBtn=$('[data-wa]',bg); if(waBtn) waBtn.onclick=()=>{ const m=getMsg(); if(!m){toast('El mensaje está vacío','err');return;} window.open('https://wa.me/'+wa+'?text='+encodeURIComponent(m),'_blank'); toast('Abriendo WhatsApp…','ok'); close(); after&&after(); };
+      $$('[data-wa]',bg).forEach(waBtn=>waBtn.onclick=()=>{ const m=getMsg(); if(!m){toast('El mensaje está vacío','err');return;} window.open('https://wa.me/'+waBtn.dataset.wa+'?text='+encodeURIComponent(m),'_blank'); toast('Abriendo WhatsApp…','ok'); close(); after&&after(); });
       const emBtn=$('[data-email]',bg); if(emBtn) emBtn.onclick=async()=>{ const m=getMsg(); if(!m){toast('El mensaje está vacío','err');return;}
         const subject='Sesión de logopedia · '+(p.name||''); emBtn.disabled=true; emBtn.textContent='Enviando…';
         try{
