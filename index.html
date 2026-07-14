@@ -535,7 +535,7 @@ const App = {
       if(it.id==='dashboard'&&todayReminders) badge=`<span class="badge">${todayReminders}</span>`;
       h+=`<button class="nav-item ${App.page===it.id?'active':''}" data-nav="${it.id}"><span class="ic">${it.ic}</span>${esc(it.label)}${badge}</button>`;
     }
-    h+=`<div class="sidebar-foot">v1.9 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
+    h+=`<div class="sidebar-foot">v2.0 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
     const sb=$('#sidebar'); sb.innerHTML=h;
     $$('[data-nav]',sb).forEach(b=>b.onclick=()=>App.navigate(b.dataset.nav));
   }
@@ -966,17 +966,19 @@ Pages.invoices = (el)=>{
     $('#inv-body').innerHTML= inv.length?inv.map(i=>{
       const p=Patients.get(i.patient_id); const st=INV_STATUS[i.status]||INV_STATUS.pendiente;
       return `<tr>
-        <td><b>${esc(i.number)}</b></td><td>${esc(clientName(p)||i.client_name||'—')}${i.retencion?' <span class="pill gold" style="font-size:10px">-15%</span>':''}</td>
+        <td><b>${esc(i.number)}</b></td><td>${esc(i.client_name||clientName(p)||'—')}${i.kind==='abono'?' <span class="pill red" style="font-size:10px">ABONO</span>':''}${i.retencion?' <span class="pill gold" style="font-size:10px">ret.</span>':''}</td>
         <td>${fmtDate(i.date)}</td><td>${esc(i.concept||'—')}</td>
         <td><b>${eur(i.total)}</b></td>
         <td><span class="pill ${st.pill}"><span class="dot"></span>${st.label}</span></td>
         <td style="text-align:right">
           <button class="btn sm" data-view="${i.id}">Ver</button>
+          ${i.kind!=='abono'?`<button class="btn sm ghost" data-rect="${i.id}">Rectificar</button>`:''}
           ${i.status!=='pagado'?`<button class="btn sm ghost" data-pay="${i.id}">Marcar pagada</button>`:''}
           <button class="btn sm ghost danger" data-del="${i.id}">×</button></td></tr>`;}).join('')
       :`<tr><td colspan="7"><div class="empty"><span class="em">€</span>Sin facturas</div></td></tr>`;
     $$('[data-view]',el).forEach(b=>b.onclick=()=>viewInvoice(b.dataset.view));
     $$('[data-pay]',el).forEach(b=>b.onclick=()=>{Invoices.update(b.dataset.pay,{status:'pagado',paid_at:todayISO()});toast('Factura cobrada','ok');draw();App.renderSidebar();});
+    $$('[data-rect]',el).forEach(b=>b.onclick=()=>rectifyInvoice(b.dataset.rect));
     $$('[data-del]',el).forEach(b=>b.onclick=()=>{if(confirm('¿Eliminar factura?')){Invoices.remove(b.dataset.del);draw();App.renderSidebar();}});
   };
   el.innerHTML=`<div class="page">
@@ -1545,9 +1547,14 @@ function invoiceForm(inv={}){
     body:`<div class="form-grid">
         <div class="field"><label>Nº factura</label><input class="inp" id="i_num" value="${esc(inv.number||nextInvoiceNumber())}"></div>
         <div class="field"><label>Fecha</label><input class="inp" id="i_date" type="date" value="${esc(inv.date||todayISO())}"></div>
-        <div class="field"><label>Paciente *</label><select class="inp" id="i_pt"><option value="">— Selecciona —</option>${pts.map(p=>`<option value="${p.id}" ${patientId===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select><div class="hint" id="i_clienthint"></div></div>
+        <div class="field"><label>Cliente *</label><select class="inp" id="i_pt"><option value="">— Selecciona —</option><option value="_other_" ${(inv.client_name&&!patientId)?'selected':''}>— Otro cliente / empresa —</option>${pts.map(p=>`<option value="${p.id}" ${patientId===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select><div class="hint" id="i_clienthint"></div></div>
         <div class="field"><label>Estado</label><select class="inp" id="i_status">${Object.entries(INV_STATUS).map(([k,v])=>`<option value="${k}" ${inv.status===k?'selected':''}>${v.label}</option>`).join('')}</select></div>
       </div>
+      <div id="i_other" style="display:none"><div class="form-grid">
+        <div class="field full"><label>Nombre / razón social *</label><input class="inp" id="i_cname" value="${esc(inv.client_name||'')}"></div>
+        <div class="field"><label>NIF / CIF</label><input class="inp" id="i_cnif" value="${esc(inv.client_nif||'')}"></div>
+        <div class="field"><label>Dirección</label><input class="inp" id="i_caddr" value="${esc(inv.client_address||'')}"></div>
+      </div></div>
       <div class="divider"></div>
       <div class="sec-title" style="display:flex;align-items:center">Líneas de la factura
         <span style="margin-left:auto;display:flex;gap:6px">
@@ -1555,21 +1562,23 @@ function invoiceForm(inv={}){
           <button class="btn sm ghost" id="i_addman">＋ Línea manual</button>
         </span></div>
       <div id="i_lines"></div>
-      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px"><input type="checkbox" id="i_ret"> Cliente empresa/profesional → aplicar <b>retención IRPF 15%</b></label>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="i_ret"> Retención IRPF</label> <input class="inp" id="i_retpct" type="number" step="1" style="width:70px;padding:5px 7px" value="${(inv.retencion&&inv.honorarios)?Math.round((inv.honorarios-inv.total)/inv.honorarios*100):15}"> %</div>
       <div class="card" style="background:var(--bg-soft);margin-top:10px;font-size:13px">
         <div style="display:flex;justify-content:space-between"><span>Honorarios</span><b id="i_hon">—</b></div>
-        <div id="i_retrow" style="display:none;justify-content:space-between;color:var(--red)"><span>Retención IRPF (15%)</span><b id="i_retamt">—</b></div>
+        <div id="i_retrow" style="display:none;justify-content:space-between;color:var(--red)"><span id="i_retlbl">Retención IRPF</span><b id="i_retamt">—</b></div>
         <div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:6px;padding-top:6px;font-size:15px"><b>Total a pagar</b><b id="i_total">—</b></div>
       </div>`,
     foot:`<button class="btn" data-close>Cancelar</button><button class="btn primary" data-save>${edit?'Guardar':'Crear factura'}</button>`,
     onMount:(bg,close)=>{
       const linesEl=$('#i_lines',bg);
-      const recalc=()=>{ const hon=lines.reduce((s,l)=>s+invLineTotal(l),0); const ret=$('#i_ret',bg).checked?hon*RETENCION:0;
-        $('#i_hon',bg).textContent=eur(hon); $('#i_retrow',bg).style.display=$('#i_ret',bg).checked?'flex':'none';
+      const recalc=()=>{ const hon=lines.reduce((s,l)=>s+invLineTotal(l),0); const pct=+$('#i_retpct',bg).value||0; const on=$('#i_ret',bg).checked; const ret=on?hon*pct/100:0;
+        $('#i_hon',bg).textContent=eur(hon); $('#i_retrow',bg).style.display=on?'flex':'none';
+        const lbl=$('#i_retlbl',bg); if(lbl) lbl.textContent='Retención IRPF ('+pct+'%)';
         $('#i_retamt',bg).textContent='-'+eur(ret); $('#i_total',bg).textContent=eur(hon-ret); };
-      const syncClient=()=>{ const p=Patients.get($('#i_pt',bg).value); const hint=$('#i_clienthint',bg);
+      const syncClient=()=>{ const v=$('#i_pt',bg).value; const other=v==='_other_'; const ob=$('#i_other',bg); if(ob) ob.style.display=other?'block':'none';
+        const p=other?null:Patients.get(v); const hint=$('#i_clienthint',bg);
         if(p){ hint.innerHTML='Se factura a <b>'+esc(clientName(p))+'</b>'+(p.dni?' · '+esc(p.dni):'')+(isCompany(p)?' · <b style="color:var(--gold)">empresa</b>':''); if(!edit) $('#i_ret',bg).checked=isCompany(p); }
-        else hint.textContent=''; recalc(); };
+        else if(other){ hint.innerHTML='Factura a empresa/cliente externo'; } else hint.textContent=''; recalc(); };
       const renderLines=()=>{
         linesEl.innerHTML = lines.length?`<table class="table"><thead><tr><th>Fecha</th><th>Concepto</th><th>Precio</th><th>Uds</th><th>Total</th><th></th></tr></thead><tbody>${lines.map((l,n)=>`
           <tr>
@@ -1587,7 +1596,7 @@ function invoiceForm(inv={}){
       };
       renderLines();
       if(edit) $('#i_ret',bg).checked=!!inv.retencion;
-      $('#i_ret',bg).onchange=recalc;
+      $('#i_ret',bg).onchange=recalc; $('#i_retpct',bg).oninput=recalc;
       $('#i_pt',bg).onchange=syncClient;
       syncClient();
       $('#i_addman',bg).onclick=()=>{ const p=Patients.get($('#i_pt',bg).value); lines.push({date:todayISO(),desc:'Sesión logopedia',price:p?.fee||c.default_fee||'',uds:1}); renderLines(); };
@@ -1609,13 +1618,16 @@ function invoiceForm(inv={}){
       };
       $('[data-save]',bg).onclick=()=>{
         const pt=$('#i_pt',bg).value; if(!pt){toast('Selecciona cliente','err');return;}
+        const other=pt==='_other_';
+        if(other && !$('#i_cname',bg).value.trim()){toast('Indica el nombre/razón social del cliente','err');return;}
         if(!lines.length){toast('Añade al menos una línea','err');return;}
         const hon=lines.reduce((s,l)=>s+invLineTotal(l),0);
-        const retencion=$('#i_ret',bg).checked;
-        const total=hon-(retencion?hon*RETENCION:0);
+        const retencion=$('#i_ret',bg).checked; const pct=+$('#i_retpct',bg).value||0;
+        const total=hon-(retencion?hon*pct/100:0);
         const number=$('#i_num',bg).value.trim();
-        const rec={number,date:$('#i_date',bg).value,patient_id:pt,lines,concept:'Sesiones de logopedia',
-          iva:c.iva!=null?c.iva:0,retencion,honorarios:hon,status:$('#i_status',bg).value,total};
+        const rec={number,date:$('#i_date',bg).value,patient_id:other?null:pt,lines,concept:(inv.concept||'Sesiones de logopedia'),
+          iva:c.iva!=null?c.iva:0,retencion,honorarios:hon,status:$('#i_status',bg).value,total,kind:inv.kind||'normal',rectifies:inv.rectifies||null,
+          client_name:other?$('#i_cname',bg).value.trim():null,client_nif:other?$('#i_cnif',bg).value.trim():null,client_address:other?$('#i_caddr',bg).value.trim():null};
         let saved; if(edit){saved=Invoices.update(inv.id,rec);} else {saved=Invoices.insert(rec);}
         // marcar sesiones facturadas
         lines.forEach(l=>{ if(l.session_id) Sessions.update(l.session_id,{invoice_ref:number}); });
@@ -1626,17 +1638,33 @@ function invoiceForm(inv={}){
 }
 // Firma: se carga desde la BBDD (tabla files, kind='signature'), no se expone en el artefacto público
 function signatureImg(){ const f=Files.where(x=>x.kind==='signature'&&!x.patient_id)[0]; return f?f.data:''; }
+function rectifyInvoice(id){
+  const o=Invoices.get(id); if(!o) return;
+  if(o.kind==='abono'){ toast('Esta ya es una rectificativa','err'); return; }
+  if(!confirm('¿Crear una factura rectificativa (abono) que anule la '+o.number+'?')) return;
+  const olines=(o.lines&&o.lines.length)?o.lines:[{date:o.date,desc:o.concept||'Sesión logopedia',price:o.price,uds:o.qty||1}];
+  const hon=(o.honorarios!=null)?o.honorarios:olines.reduce((s,l)=>s+invLineTotal(l),0);
+  const tot=(o.total!=null)?o.total:hon;
+  const num=nextInvoiceNumber();
+  Invoices.insert({number:num,date:todayISO(),patient_id:o.patient_id||null,lines:olines.map(l=>({...l,price:-(+l.price||0)})),
+    concept:o.concept||'Rectificación',iva:o.iva||0,retencion:!!o.retencion,honorarios:-hon,total:-tot,status:'enviado',
+    kind:'abono',rectifies:o.number,client_name:o.client_name||null,client_nif:o.client_nif||null,client_address:o.client_address||null});
+  toast('Rectificativa '+num+' creada (abono de '+o.number+')','ok'); App.render(); App.renderSidebar();
+  invoiceForm({date:todayISO(),patient_id:o.patient_id||'',lines:olines.map(l=>({...l})),concept:o.concept,retencion:!!o.retencion,honorarios:hon,total:tot,client_name:o.client_name,client_nif:o.client_nif,client_address:o.client_address});
+}
 function viewInvoice(id){
   const i=Invoices.get(id); const p=Patients.get(i.patient_id); const c=Config.get();
   const sig=signatureImg();
   const lines=(i.lines&&i.lines.length)?i.lines:[{date:i.date,desc:i.concept||'Sesión logopedia',price:i.price,uds:i.qty||1}];
   const honorarios=lines.reduce((s,l)=>s+invLineTotal(l),0);
-  const retencion=!!i.retencion; const retAmt=retencion?honorarios*RETENCION:0;
-  const total=i.total!=null?i.total:(honorarios-retAmt);
+  const total=i.total!=null?i.total:honorarios;
+  const retencion=!!i.retencion; const retAmt=retencion?(honorarios-total):0;
+  const retPct=(retencion&&honorarios)?Math.round(Math.abs(retAmt)/Math.abs(honorarios)*100):0;
+  const abono=i.kind==='abono';
   const exenta=(+i.iva||0)===0;
   const ivaAmt=honorarios*(+i.iva||0)/100;
   const NAVY='#2D4262';
-  modal({ title:'Factura '+i.number, wide:true,
+  modal({ title:(i.kind==='abono'?'Factura rectificativa ':'Factura ')+i.number, wide:true,
     body:`<div id="inv-print" style="font-size:13px;color:#222">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
         <img src="${LOGO_IMG}" alt="${esc(c.pro_name||'')}" style="height:74px">
@@ -1650,10 +1678,11 @@ function viewInvoice(id){
         <b style="color:${NAVY}">${esc(c.pro_name||'')}</b> · Nº Coleg. Logopedas ${esc(c.pro_lic||'—')}${c.pro_lic_psi?' · Psicólogos '+esc(c.pro_lic_psi):''}<br>
         DNI/CIF: ${esc(c.nif||'—')} · ${esc(c.address||'')}
       </div>
+      ${abono?`<div style="margin-bottom:10px;font-weight:700;color:#b00">FACTURA RECTIFICATIVA (ABONO)${i.rectifies?' · Rectifica la factura '+esc(i.rectifies):''}</div>`:''}
       <div style="margin-bottom:16px;font-size:12.5px">
-        <div><b>Nombre y apellidos / Razón social:</b> ${esc(clientName(p)||i.client_name||'')}</div>
-        <div><b>NIF/CIF:</b> ${esc(p?.dni||'—')}</div>
-        <div><b>Dirección:</b> ${esc(p?.address||'—')}</div>
+        <div><b>Nombre y apellidos / Razón social:</b> ${esc(i.client_name||clientName(p)||'')}</div>
+        <div><b>NIF/CIF:</b> ${esc(i.client_nif||(p&&p.dni)||'—')}</div>
+        <div><b>Dirección:</b> ${esc(i.client_address||(p&&p.address)||'—')}</div>
       </div>
       <div style="font-weight:700;background:${NAVY};color:#fff;padding:6px 10px;border-radius:5px;margin-bottom:6px">SESIONES DE LOGOPEDIA</div>
       <table class="table"><thead><tr><th>Fecha</th><th>Sesión</th><th style="text-align:right">Precio</th><th style="text-align:center">Uds</th><th style="text-align:right">Total</th></tr></thead>
@@ -1661,14 +1690,14 @@ function viewInvoice(id){
       <div style="margin-top:14px;margin-left:auto;width:280px;font-size:13px">
         <div style="display:flex;justify-content:space-between"><span>Honorarios</span><b>${eur(honorarios)}</b></div>
         ${!exenta?`<div style="display:flex;justify-content:space-between"><span>IVA (${i.iva}%)</span><b>${eur(ivaAmt)}</b></div>`:''}
-        ${retencion?`<div style="display:flex;justify-content:space-between;color:#b00"><span>Retención IRPF (15%)</span><b>-${eur(retAmt)}</b></div>`:''}
+        ${retencion?`<div style="display:flex;justify-content:space-between;color:#b00"><span>Retención IRPF (${retPct}%)</span><b>${eur(-retAmt)}</b></div>`:''}
         <div style="display:flex;justify-content:space-between;border-top:2px solid ${NAVY};margin-top:6px;padding-top:6px;font-size:16px;color:${NAVY}"><b>TOTAL A PAGAR</b><b>${eur(total)}</b></div>
       </div>
       ${c.ccc?`<div style="margin-top:22px;font-size:12px">Recibí la cantidad citada a través de transferencia bancaria al número de CCC: <b>${esc(c.ccc)}</b></div>`:''}
       <div style="margin-top:22px;font-size:12px">Firmado:</div>
       ${sig?`<img src="${sig}" alt="firma" style="height:62px;margin:2px 0 0 6px">`:''}
       <div style="font-size:12px;color:#555">${esc(c.pro_name||'')}${c.pro_lic?' · Col. '+esc(c.pro_lic):''}</div>
-      ${exenta?`<div style="text-align:center;color:#666;font-size:11px;margin-top:20px;border-top:1px solid #ddd;padding-top:8px">${esc(c.iva_exencion||'Factura exenta de IVA según art. 20.1 de la Ley 37/1992')}${retencion?' · Operación sujeta a retención de IRPF del 15%':''}</div>`:''}
+      ${exenta?`<div style="text-align:center;color:#666;font-size:11px;margin-top:20px;border-top:1px solid #ddd;padding-top:8px">${esc(c.iva_exencion||'Factura exenta de IVA según art. 20.1 de la Ley 37/1992')}${retencion?' · Operación sujeta a retención de IRPF del '+retPct+'%':''}</div>`:''}
     </div>`,
     foot:`<button class="btn" data-close>Cerrar</button><button class="btn" data-email>✉ Email</button><button class="btn primary" data-pdf>⬇ Exportar PDF</button>`,
     onMount:(bg)=>{
