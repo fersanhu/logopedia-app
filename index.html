@@ -535,7 +535,7 @@ const App = {
       if(it.id==='dashboard'&&todayReminders) badge=`<span class="badge">${todayReminders}</span>`;
       h+=`<button class="nav-item ${App.page===it.id?'active':''}" data-nav="${it.id}"><span class="ic">${it.ic}</span>${esc(it.label)}${badge}</button>`;
     }
-    h+=`<div class="sidebar-foot">v2.0 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
+    h+=`<div class="sidebar-foot">v2.1 · ${DB.isRemote()?'Supabase ✓':'modo local'} · ${AI.enabled()?'IA ✓':'IA off'}<br>${Patients.all().length} pacientes</div>`;
     const sb=$('#sidebar'); sb.innerHTML=h;
     $$('[data-nav]',sb).forEach(b=>b.onclick=()=>App.navigate(b.dataset.nav));
   }
@@ -972,6 +972,7 @@ Pages.invoices = (el)=>{
         <td><span class="pill ${st.pill}"><span class="dot"></span>${st.label}</span></td>
         <td style="text-align:right">
           <button class="btn sm" data-view="${i.id}">Ver</button>
+          <button class="btn sm ghost" data-isend="${i.id}">📤</button>
           ${i.kind!=='abono'?`<button class="btn sm ghost" data-rect="${i.id}">Rectificar</button>`:''}
           ${i.status!=='pagado'?`<button class="btn sm ghost" data-pay="${i.id}">Marcar pagada</button>`:''}
           <button class="btn sm ghost danger" data-del="${i.id}">×</button></td></tr>`;}).join('')
@@ -979,6 +980,7 @@ Pages.invoices = (el)=>{
     $$('[data-view]',el).forEach(b=>b.onclick=()=>viewInvoice(b.dataset.view));
     $$('[data-pay]',el).forEach(b=>b.onclick=()=>{Invoices.update(b.dataset.pay,{status:'pagado',paid_at:todayISO()});toast('Factura cobrada','ok');draw();App.renderSidebar();});
     $$('[data-rect]',el).forEach(b=>b.onclick=()=>rectifyInvoice(b.dataset.rect));
+    $$('[data-isend]',el).forEach(b=>b.onclick=()=>sendInvoiceModal(b.dataset.isend));
     $$('[data-del]',el).forEach(b=>b.onclick=()=>{if(confirm('¿Eliminar factura?')){Invoices.remove(b.dataset.del);draw();App.renderSidebar();}});
   };
   el.innerHTML=`<div class="page">
@@ -1652,6 +1654,31 @@ function rectifyInvoice(id){
   toast('Rectificativa '+num+' creada (abono de '+o.number+')','ok'); App.render(); App.renderSidebar();
   invoiceForm({date:todayISO(),patient_id:o.patient_id||'',lines:olines.map(l=>({...l})),concept:o.concept,retencion:!!o.retencion,honorarios:hon,total:tot,client_name:o.client_name,client_nif:o.client_nif,client_address:o.client_address});
 }
+function invoiceMsg(i,p,cfg){
+  const name=i.client_name||(p&&(p.tutor||p.name))||'';
+  const first=name.split(/[\/,]/)[0].trim();
+  const ccc=cfg.ccc?('\n\nPuedes abonarla por transferencia al CCC: '+cfg.ccc+'.'):'';
+  return `Hola${first?' '+first:''}:\n\nTe envío la factura nº ${i.number} (${fmtDate(i.date)}) por un total de ${eur(i.total)}${i.concept?' — '+i.concept:''}.${ccc}\n\nUn saludo,\n${cfg.pro_name||cfg.clinic_name||''}`;
+}
+function sendInvoiceModal(id, after){
+  const i=Invoices.get(id); if(!i) return;
+  const p=Patients.get(i.patient_id); const cfg=Config.get(); const phones=p?waButtons(p):[]; const email=(p&&p.email)||'';
+  modal({ title:'Enviar factura '+i.number, wide:true,
+    body:`<div class="muted" style="margin-bottom:10px;font-size:13px">Cliente: <b>${esc(i.client_name||clientName(p)||'')}</b> · ${eur(i.total)}${phones.length?'':'<div style="color:var(--amber)">⚠ Sin teléfono para WhatsApp (cliente sin paciente). Usa email o exporta el PDF.</div>'}</div>
+      <div class="field"><label>Mensaje (revísalo antes de enviar)</label><textarea class="inp" id="iv_msg" style="min-height:150px">${esc(invoiceMsg(i,p,cfg))}</textarea></div>
+      <div class="ai-box" style="font-size:12px">📎 WhatsApp y email envían el <b>texto</b>. Para adjuntar el PDF, pulsa «Ver / PDF», expórtalo y adjúntalo al enviar.</div>`,
+    foot:`<button class="btn" data-close>Cancelar</button>
+      <button class="btn ghost" data-viewpdf>Ver / PDF</button>
+      ${phones.map(ph=>'<button class="btn green" data-wa="'+ph.wa+'">🟢 '+esc(ph.label||ph.num)+'</button>').join('')}
+      ${email?'<button class="btn" data-email>✉ Email</button>':''}`,
+    onMount:(bg,close)=>{
+      const getMsg=()=>$('#iv_msg',bg).value.trim();
+      $('[data-viewpdf]',bg).onclick=()=>viewInvoice(i.id);
+      $$('[data-wa]',bg).forEach(b=>b.onclick=()=>{ const m=getMsg(); if(!m)return; window.open('https://wa.me/'+b.dataset.wa+'?text='+encodeURIComponent(m),'_blank'); toast('Abriendo WhatsApp…','ok'); close(); after&&after(); });
+      const em=$('[data-email]',bg); if(em) em.onclick=()=>{ const m=getMsg(); if(!m)return; window.location.href='mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent('Factura '+i.number)+'&body='+encodeURIComponent(m); close(); after&&after(); };
+    }
+  });
+}
 function viewInvoice(id){
   const i=Invoices.get(id); const p=Patients.get(i.patient_id); const c=Config.get();
   const sig=signatureImg();
@@ -1699,10 +1726,10 @@ function viewInvoice(id){
       <div style="font-size:12px;color:#555">${esc(c.pro_name||'')}${c.pro_lic?' · Col. '+esc(c.pro_lic):''}</div>
       ${exenta?`<div style="text-align:center;color:#666;font-size:11px;margin-top:20px;border-top:1px solid #ddd;padding-top:8px">${esc(c.iva_exencion||'Factura exenta de IVA según art. 20.1 de la Ley 37/1992')}${retencion?' · Operación sujeta a retención de IRPF del '+retPct+'%':''}</div>`:''}
     </div>`,
-    foot:`<button class="btn" data-close>Cerrar</button><button class="btn" data-email>✉ Email</button><button class="btn primary" data-pdf>⬇ Exportar PDF</button>`,
+    foot:`<button class="btn" data-close>Cerrar</button><button class="btn primary" data-send>📤 Enviar</button><button class="btn" data-pdf>⬇ PDF</button>`,
     onMount:(bg)=>{
       $('[data-pdf]',bg).onclick=()=>printNode($('#inv-print',bg).innerHTML,'Factura '+i.number);
-      $('[data-email]',bg).onclick=()=>{ window.location.href=`mailto:${p?.email||''}?subject=${encodeURIComponent('Factura '+i.number)}&body=${encodeURIComponent('Adjunto factura '+i.number+' por importe de '+eur(total)+'.')}`; };
+      $('[data-send]',bg).onclick=()=>sendInvoiceModal(i.id);
     }
   });
 }
