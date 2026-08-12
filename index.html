@@ -987,6 +987,26 @@ function invBarsSVG(data){ // data:[{short,label,fact,cob,sel}]
   });
   return s+'</svg>';
 }
+// Resumen fiscal del periodo (base, IVA repercutido, retención IRPF, total) — modelos 303/130.
+// Identidad usada: total = base + IVA − retención  →  retención = base + IVA − total.
+function invFiscalOf(list){
+  let base=0,iva=0,ret=0,total=0;
+  list.forEach(i=>{ const b=(i.honorarios!=null)?(+i.honorarios||0):(+i.total||0); const iv=b*(+i.iva||0)/100; const t=+i.total||0;
+    base+=b; iva+=iv; ret+=(b+iv-t); total+=t; });
+  return {base,iva,ret,total};
+}
+function invCSVString(list){
+  const num=n=>(+n||0).toFixed(2).replace('.',','); const q=s=>'"'+String(s==null?'':s).replace(/"/g,'""')+'"';
+  const H=['Numero','Fecha','Cliente','NIF','Concepto','Base','IVA %','IVA','Retencion','Total','Estado','VeriFactu'];
+  const rows=list.map(i=>{ const p=Patients.get(i.patient_id); const b=(i.honorarios!=null)?(+i.honorarios||0):(+i.total||0); const iv=b*(+i.iva||0)/100; const t=+i.total||0; const st=(INV_STATUS[i.status]||{}).label||i.status||'';
+    return [i.number,fmtDate(i.date),i.client_name||clientName(p)||'',i.client_nif||(p&&p.dni)||'',i.concept||'',num(b),(+i.iva||0),num(iv),num(b+iv-t),num(t),st,(i.verifactu&&i.verifactu.estado)||''].map(q).join(';'); });
+  return '﻿'+[H.map(q).join(';'),...rows].join('\r\n');
+}
+function invDownloadCSV(list,label){
+  const blob=new Blob([invCSVString(list)],{type:'text/csv;charset=utf-8'}); const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='facturacion_'+String(label||'').replace(/[^\w-]+/g,'_')+'.csv';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
 Pages.invoices = (el)=>{
   let filter='todas', gran='mes', anchor=new Date();
   const delta=(a,b)=>{ if(!b) return ''; const p=Math.round((a-b)/Math.abs(b)*100); if(!isFinite(p)||p===0) return ''; const up=p>0;
@@ -1015,7 +1035,23 @@ Pages.invoices = (el)=>{
         <div style="font-size:12px;color:var(--text-soft)"><span style="color:var(--accent)">■</span> Facturado &nbsp; <span style="color:var(--green)">■</span> Cobrado</div>
       </div>${invBarsSVG(data)}`;
     $$('#inv-chart [data-bar]',el).forEach(b=>b.onclick=()=>{ anchor=data[+b.dataset.bar]._a; draw(); });
-    let inv=Invoices.all().filter(i=>{ const d=i.date?new Date(i.date):null; return d&&!isNaN(d)&&d>=r.start&&d<=r.end; });
+    // resumen fiscal del periodo (modelos 303/130) + export CSV
+    const periodList=Invoices.all().filter(i=>{ const d=i.date?new Date(i.date):null; return d&&!isNaN(d)&&d>=r.start&&d<=r.end; });
+    const fis=invFiscalOf(periodList);
+    $('#inv-fiscal').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap">
+        <div style="display:flex;gap:26px;flex-wrap:wrap">
+          <div><div class="k">Base imponible</div><div style="font-weight:700;font-size:16px">${eur(fis.base)}</div></div>
+          <div><div class="k">IVA repercutido</div><div style="font-weight:700;font-size:16px">${eur(fis.iva)}</div></div>
+          <div><div class="k">Retención IRPF</div><div style="font-weight:700;font-size:16px">${eur(fis.ret)}</div></div>
+          <div><div class="k">Total</div><div style="font-weight:700;font-size:16px">${eur(fis.total)}</div></div>
+        </div>
+        <div style="text-align:right">
+          <button class="btn sm" data-csv ${periodList.length?'':'disabled'}>⬇ Exportar CSV</button>
+          <div class="k" style="margin-top:5px">Útil para modelos 303 (IVA) y 130 (IRPF)</div>
+        </div>
+      </div>`;
+    const csvb=$('[data-csv]',el); if(csvb) csvb.onclick=()=>{ invDownloadCSV(periodList, r.label); toast('CSV exportado','ok'); };
+    let inv=periodList.slice();
     if(filter!=='todas') inv=inv.filter(i=>i.status===filter);
     inv.sort((a,b)=>(b.number||'').localeCompare(a.number||''));
     $('#inv-body').innerHTML= inv.length?inv.map(i=>{
@@ -1045,6 +1081,7 @@ Pages.invoices = (el)=>{
       <div class="actions"><button class="btn primary" data-new>＋ Nueva factura</button></div></div>
     <div class="toolbar" id="inv-period" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px"></div>
     <div class="stat" id="inv-stats" style="margin-bottom:16px"></div>
+    <div class="card" id="inv-fiscal" style="margin-bottom:16px"></div>
     <div class="card" id="inv-chart" style="margin-bottom:20px"></div>
     <div class="toolbar"><div class="chips">
       <button class="chip active" data-f="todas">Todas</button>
